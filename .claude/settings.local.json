@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__basic-memory__recent_activity",
+      "mcp__basic-memory__read_note",
+      "mcp__basic-memory__write_note"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

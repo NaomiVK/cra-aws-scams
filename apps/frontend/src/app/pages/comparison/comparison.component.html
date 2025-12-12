@@ -1,0 +1,296 @@
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h3 mb-0">Period Comparison</h1>
+      <p class="text-muted">Compare search term metrics between time periods</p>
+    </div>
+  </div>
+
+  <!-- Comparison Controls -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <!-- Preset Selector -->
+        <div class="col-lg-3">
+          <label class="form-label small text-muted mb-1">Comparison Period</label>
+          <select class="form-select"
+            [ngModel]="selectedPreset()"
+            (ngModelChange)="selectedPreset.set($event); onPresetChange()">
+            @for (preset of comparisonPresets; track preset.value) {
+              <option [value]="preset.value">{{ preset.label }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Custom Date Range (shown when Custom is selected) -->
+        @if (selectedPreset() === 'custom') {
+          <div class="col-lg-8">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Period 1 Start</label>
+                <div class="input-group">
+                  <input class="form-control" placeholder="yyyy-mm-dd"
+                    name="p1Start" [ngModel]="period1Start()"
+                    (ngModelChange)="period1Start.set($event)"
+                    ngbDatepicker #d1="ngbDatepicker" />
+                  <button class="btn btn-outline-secondary" (click)="d1.toggle()" type="button">
+                    <i class="bi bi-calendar3"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Period 1 End</label>
+                <div class="input-group">
+                  <input class="form-control" placeholder="yyyy-mm-dd"
+                    name="p1End" [ngModel]="period1End()"
+                    (ngModelChange)="period1End.set($event)"
+                    ngbDatepicker #d2="ngbDatepicker" />
+                  <button class="btn btn-outline-secondary" (click)="d2.toggle()" type="button">
+                    <i class="bi bi-calendar3"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Period 2 Start</label>
+                <div class="input-group">
+                  <input class="form-control" placeholder="yyyy-mm-dd"
+                    name="p2Start" [ngModel]="period2Start()"
+                    (ngModelChange)="period2Start.set($event)"
+                    ngbDatepicker #d3="ngbDatepicker" />
+                  <button class="btn btn-outline-secondary" (click)="d3.toggle()" type="button">
+                    <i class="bi bi-calendar3"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Period 2 End</label>
+                <div class="input-group">
+                  <input class="form-control" placeholder="yyyy-mm-dd"
+                    name="p2End" [ngModel]="period2End()"
+                    (ngModelChange)="period2End.set($event)"
+                    ngbDatepicker #d4="ngbDatepicker" />
+                  <button class="btn btn-outline-secondary" (click)="d4.toggle()" type="button">
+                    <i class="bi bi-calendar3"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-1">
+            <button class="btn btn-primary w-100" (click)="loadComparison()" [disabled]="loading()">
+              <i class="bi bi-arrow-repeat"></i>
+            </button>
+          </div>
+        }
+
+        @if (selectedPreset() !== 'custom') {
+          <div class="col-lg-2">
+            <button class="btn btn-primary" (click)="loadComparison()" [disabled]="loading()">
+              <i class="bi bi-arrow-repeat me-1"></i> Refresh
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading comparison data...</p>
+    </div>
+  }
+
+  <!-- Error State -->
+  @if (error()) {
+    <div class="alert alert-danger" role="alert">
+      <strong>Error:</strong> {{ error() }}
+      <button class="btn btn-link" (click)="loadComparison()">Retry</button>
+    </div>
+  }
+
+  <!-- Comparison Content -->
+  @if (!loading() && !error() && comparisonData()) {
+    <!-- Period Info Badge -->
+    <div class="mb-3">
+      <span class="badge bg-primary me-2">{{ getSelectedPresetLabel() }}</span>
+      <span class="text-muted small">
+        Current: {{ comparisonData()!.currentPeriod.startDate }} to {{ comparisonData()!.currentPeriod.endDate }}
+        &nbsp;|&nbsp;
+        Previous: {{ comparisonData()!.previousPeriod.startDate }} to {{ comparisonData()!.previousPeriod.endDate }}
+      </span>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Total Terms</h5>
+            <div class="d-flex align-items-baseline">
+              <span class="display-5">{{ comparisonData()!.summary.totalTerms }}</span>
+            </div>
+            <small class="text-muted">
+              {{ comparisonData()!.currentPeriod.startDate }} - {{ comparisonData()!.currentPeriod.endDate }}
+            </small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">New Terms</h5>
+            <div class="d-flex align-items-baseline">
+              <span class="display-5 text-success">{{ comparisonData()!.summary.newTerms }}</span>
+            </div>
+            <small class="text-muted">Not present in previous period</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Total Impressions</h5>
+            <div class="d-flex align-items-baseline">
+              <span class="display-5">{{ comparisonData()!.summary.totalImpressions.current | number }}</span>
+              <span class="ms-2" [ngClass]="getChangeClass(comparisonData()!.summary.totalImpressions.changePercent)">
+                <i class="bi" [ngClass]="getChangeIcon(comparisonData()!.summary.totalImpressions.changePercent)"></i>
+                {{ formatChange(comparisonData()!.summary.totalImpressions.changePercent) }}
+              </span>
+            </div>
+            <small class="text-muted">vs {{ comparisonData()!.summary.totalImpressions.previous | number }} previous</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Terms Section -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0">
+              <i class="bi bi-plus-circle me-2"></i>
+              New Terms This Period ({{ comparisonData()!.summary.newTerms }})
+            </h5>
+          </div>
+          <div class="card-body scrollable" style="max-height: 300px; overflow-y: auto;">
+            @for (term of getNewTerms(); track term.query) {
+              <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                <div>
+                  <strong>{{ term.query }}</strong>
+                </div>
+                <span class="badge bg-primary">{{ term.current.impressions | number }} imp</span>
+              </div>
+            } @empty {
+              <p class="text-muted text-center mb-0">No new terms detected</p>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">
+              <i class="bi bi-dash-circle me-2"></i>
+              Dropped Off ({{ comparisonData()!.summary.goneTerms }})
+            </h5>
+          </div>
+          <div class="card-body scrollable" style="max-height: 300px; overflow-y: auto;">
+            @for (term of getRemovedTerms(); track term.query) {
+              <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                <div>
+                  <strong class="text-muted">{{ term.query }}</strong>
+                </div>
+                <span class="badge bg-secondary">was {{ term.previous.impressions | number }} imp</span>
+              </div>
+            } @empty {
+              <p class="text-muted text-center mb-0">No terms dropped off</p>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trending Terms with Filters -->
+    <div class="card">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="bi bi-graph-up me-2"></i>
+            Terms with Significant Changes
+          </h5>
+          <span class="badge bg-info">{{ filteredTrendingTerms().length }} terms</span>
+        </div>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small text-muted mb-1">Filter by query</label>
+            <input type="text" class="form-control" placeholder="Search queries..."
+              [ngModel]="queryFilter()"
+              (ngModelChange)="queryFilter.set($event)" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">Min change %</label>
+            <input type="number" class="form-control" placeholder="0"
+              [ngModel]="minChangeFilter()"
+              (ngModelChange)="minChangeFilter.set($event)" min="0" max="100" />
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-outline-secondary" (click)="queryFilter.set(''); minChangeFilter.set(0)">
+              <i class="bi bi-x-circle me-1"></i> Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="cursor: pointer;" (click)="sort('query')">
+                Query
+                <i class="bi ms-1" [ngClass]="getSortIcon('query')"></i>
+              </th>
+              <th style="cursor: pointer;" (click)="sort('currentImpressions')">
+                Current Impressions
+                <i class="bi ms-1" [ngClass]="getSortIcon('currentImpressions')"></i>
+              </th>
+              <th style="cursor: pointer;" (click)="sort('previousImpressions')">
+                Previous Impressions
+                <i class="bi ms-1" [ngClass]="getSortIcon('previousImpressions')"></i>
+              </th>
+              <th style="cursor: pointer;" (click)="sort('change')">
+                Change
+                <i class="bi ms-1" [ngClass]="getSortIcon('change')"></i>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (term of filteredTrendingTerms(); track term.query) {
+              <tr>
+                <td><strong>{{ term.query }}</strong></td>
+                <td>{{ term.current.impressions | number }}</td>
+                <td>{{ term.previous.impressions | number }}</td>
+                <td [ngClass]="getChangeClass(term.change.impressionsPercent)">
+                  <i class="bi" [ngClass]="getChangeIcon(term.change.impressionsPercent)"></i>
+                  {{ formatChange(term.change.impressionsPercent) }}
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4" class="text-center text-muted py-4">
+                  No terms match the current filters
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

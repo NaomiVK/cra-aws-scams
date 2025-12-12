@@ -1,0 +1,133 @@
+/* Bootstrap imports */
+@use 'bootstrap/scss/bootstrap';
+@use 'bootstrap-icons/font/bootstrap-icons.css';
+
+/* Custom variables */
+:root {
+  --severity-critical: #dc3545;
+  --severity-high: #fd7e14;
+  --severity-medium: #ffc107;
+  --severity-low: #17a2b8;
+}
+
+/* Global styles */
+body {
+  background-color: #f8f9fa;
+}
+
+/* Severity badge colors */
+.badge-critical {
+  background-color: var(--severity-critical);
+  color: white;
+}
+
+.badge-high {
+  background-color: var(--severity-high);
+  color: white;
+}
+
+.badge-medium {
+  background-color: var(--severity-medium);
+  color: #212529;
+}
+
+.badge-low {
+  background-color: var(--severity-low);
+  color: white;
+}
+
+/* KPI Cards */
+.kpi-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .kpi-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+  }
+
+  .kpi-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .kpi-trend {
+    font-size: 0.875rem;
+
+    &.trend-up {
+      color: #dc3545;
+    }
+
+    &.trend-down {
+      color: #28a745;
+    }
+  }
+}
+
+/* Alert Panel */
+.alert-panel {
+  max-height: 400px;
+  overflow-y: auto;
+
+  .alert-item {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background-color: #f8f9fa;
+    }
+  }
+}
+
+/* Data Table */
+.data-table {
+  th {
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #f8f9fa;
+    }
+
+    .sort-icon {
+      margin-left: 0.25rem;
+      opacity: 0.5;
+    }
+
+    &.sorted .sort-icon {
+      opacity: 1;
+    }
+  }
+}
+
+/* Loading spinner */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* Scrollable containers */
+.scrollable {
+  max-height: 500px;
+  overflow-y: auto;
+}

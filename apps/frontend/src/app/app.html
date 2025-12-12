@@ -1,0 +1,60 @@
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" routerLink="/dashboard">CRA Misinformation</a>
+    <button
+      class="navbar-toggler"
+      type="button"
+      (click)="isNavCollapsed = !isNavCollapsed"
+      aria-controls="navbarNav"
+      aria-expanded="false"
+      aria-label="Toggle navigation"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" [ngbCollapse]="isNavCollapsed" id="navbarNav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a
+            class="nav-link"
+            routerLink="/dashboard"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: true }"
+          >
+            <i class="bi bi-speedometer2 me-1"></i>
+            Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/comparison" routerLinkActive="active">
+            <i class="bi bi-arrow-left-right me-1"></i>
+            Comparison
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/trends" routerLinkActive="active">
+            <i class="bi bi-graph-up me-1"></i>
+            Trends
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/social" routerLinkActive="active">
+            <i class="bi bi-broadcast me-1"></i>
+            Social Listening
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/admin" routerLinkActive="active">
+            <i class="bi bi-shield-exclamation me-1"></i>
+            Admin Console
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main>
+  <router-outlet />
+</main>

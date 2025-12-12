@@ -1,0 +1,23 @@
+:host {
+  display: block;
+}
+
+// Canada Map Styles
+.canada-map {
+  path {
+    cursor: pointer;
+    transition: opacity 0.2s ease, stroke-width 0.2s ease;
+
+    &:hover {
+      opacity: 0.8;
+      stroke-width: 2;
+      stroke: #333;
+    }
+  }
+
+  .province-label {
+    pointer-events: none;
+    font-weight: 500;
+    text-anchor: middle;
+  }
+}

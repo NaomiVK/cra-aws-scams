@@ -1,0 +1,340 @@
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h3 mb-0">Admin Console</h1>
+      <p class="text-muted">Manage scam detection keywords and monitor emerging threats</p>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-success" (click)="exportConfig()" [disabled]="!keywordsConfig()"
+              ngbTooltip="Download the current keyword configuration as JSON">
+        <i class="bi bi-download me-1"></i>
+        Export Configuration
+      </button>
+    </div>
+  </div>
+
+  <ul ngbNav #nav="ngbNav" [(activeId)]="activeTab" class="nav-tabs">
+    <li [ngbNavItem]="1">
+      <button ngbNavLink>Emerging Threats</button>
+      <ng-template ngbNavContent>
+        <div class="pt-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              @if (emergingThreats(); as data) {
+                <span class="badge bg-danger me-2" ngbTooltip="Risk score 76-100: Immediate action required">{{ data.summary.critical }} Critical</span>
+                <span class="badge bg-warning text-dark me-2" ngbTooltip="Risk score 51-75: Review promptly">{{ data.summary.high }} High</span>
+                <span class="badge bg-info text-dark me-2" ngbTooltip="Risk score 31-50: Monitor closely">{{ data.summary.medium }} Medium</span>
+                <span class="badge bg-secondary" ngbTooltip="Risk score 0-30: Low priority">{{ data.summary.low }} Low</span>
+              }
+            </div>
+            <div>
+              <select class="form-select form-select-sm" [ngModel]="selectedDays()" (ngModelChange)="selectedDays.set($event); onDaysChange()"
+                      ngbTooltip="Compare current period vs previous period">
+                <option [value]="7">Last 7 days</option>
+                <option [value]="30">Last 30 days</option>
+              </select>
+            </div>
+          </div>
+
+          @if (loading()) {
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          } @else if (error()) {
+            <div class="alert alert-danger">{{ error() }}</div>
+          } @else if (emergingThreats(); as data) {
+            @if (data.threats.length === 0) {
+              <div class="alert alert-success">No emerging threats detected.</div>
+            } @else {
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead class="table-light">
+                    <tr>
+                      <th ngbTooltip="Search query from Google Search Console">Query</th>
+                      <th ngbTooltip="Composite risk score (0-100) based on CTR anomaly, position, volume, and pattern matches">Risk</th>
+                      <th ngbTooltip="Click-through rate compared to expected CTR for this position. Low CTR at good position = users clicking scam sites instead">CTR Anomaly</th>
+                      <th ngbTooltip="Number of times users saw CRA pages for this query">Impressions</th>
+                      <th ngbTooltip="Matched scam patterns: regex patterns (gray) and semantic matches (yellow)">Patterns</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (threat of data.threats; track threat.id) {
+                      <tr>
+                        <td>
+                          <strong>{{ threat.query }}</strong>
+                          @if (threat.isNew) {
+                            <span class="badge bg-primary ms-2" ngbTooltip="First appeared in the current period">New</span>
+                          }
+                        </td>
+                        <td>
+                          <span class="badge bg-{{ getRiskClass(threat.riskLevel) }}"
+                                ngbTooltip="Score: {{ threat.riskScore }}/100">
+                            {{ threat.riskScore }}
+                          </span>
+                          <small class="d-block text-muted">{{ threat.riskLevel }}</small>
+                        </td>
+                        <td>
+                          <div ngbTooltip="Based on average position {{ threat.current.position.toFixed(1) }}">
+                            <small class="text-muted">Expected: {{ (threat.ctrAnomaly.expectedCTR * 100).toFixed(1) }}%</small>
+                          </div>
+                          <div>
+                            <small [class]="threat.ctrAnomaly.isAnomalous ? 'text-danger fw-bold' : ''">
+                              Actual: {{ (threat.ctrAnomaly.actualCTR * 100).toFixed(2) }}%
+                            </small>
+                          </div>
+                          @if (threat.ctrAnomaly.isAnomalous) {
+                            <span class="badge bg-danger" ngbTooltip="CTR is significantly below expected for this position range">Anomaly</span>
+                          }
+                        </td>
+                        <td>
+                          <span ngbTooltip="Current period impressions">{{ threat.current.impressions | number }}</span>
+                          @if (threat.change.impressionsPercent > 0) {
+                            <small class="text-success d-block" ngbTooltip="Increase from previous period">+{{ threat.change.impressionsPercent.toFixed(0) }}%</small>
+                          }
+                        </td>
+                        <td>
+                          @for (pattern of threat.matchedPatterns; track pattern) {
+                            <span class="badge bg-secondary me-1 mb-1" ngbTooltip="Regex pattern match">{{ pattern }}</span>
+                          }
+                          @for (scam of threat.similarScams; track scam) {
+                            <span class="badge bg-warning text-dark me-1 mb-1" ngbTooltip="Semantic similarity to known scam phrase">{{ scam }}</span>
+                          }
+                        </td>
+                        <td>
+                          <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-danger" (click)="addToKeywords(threat)"
+                                    ngbTooltip="Add this query to the scam keywords list">
+                              <i class="bi bi-plus-circle"></i>
+                            </button>
+                            <button class="btn btn-outline-success" (click)="addToWhitelist(threat)"
+                                    ngbTooltip="Mark as legitimate - will never be flagged again">
+                              <i class="bi bi-check-circle"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" (click)="dismissThreat(threat)"
+                                    ngbTooltip="Dismiss this threat for now">
+                              <i class="bi bi-x-circle"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination -->
+              @if (data.pagination.totalPages > 1) {
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                  <small class="text-muted">
+                    Showing {{ (data.pagination.page - 1) * data.pagination.pageSize + 1 }} -
+                    {{ Math.min(data.pagination.page * data.pagination.pageSize, data.pagination.totalItems) }}
+                    of {{ data.pagination.totalItems }} threats
+                  </small>
+                  <ngb-pagination
+                    [collectionSize]="data.pagination.totalItems"
+                    [page]="data.pagination.page"
+                    [pageSize]="data.pagination.pageSize"
+                    [maxSize]="5"
+                    [rotate]="true"
+                    [boundaryLinks]="true"
+                    (pageChange)="onPageChange($event)">
+                  </ngb-pagination>
+                </div>
+              }
+            }
+          }
+        </div>
+      </ng-template>
+    </li>
+
+    <li [ngbNavItem]="2">
+      <button ngbNavLink>Keywords</button>
+      <ng-template ngbNavContent>
+        <div class="pt-4">
+          <div class="card mb-4">
+            <div class="card-body">
+              <h6 class="card-title">Add New Keyword</h6>
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <select class="form-select" [ngModel]="selectedCategory()" (ngModelChange)="selectedCategory.set($event)"
+                          ngbTooltip="Select the category for this keyword">
+                    <option value="fakeExpiredBenefits">Fake/Expired Benefits</option>
+                    <option value="illegitimatePaymentMethods">Illegitimate Payment Methods</option>
+                    <option value="threatLanguage">Threat Language</option>
+                    <option value="suspiciousModifiers">Suspicious Modifiers</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <input type="text" class="form-control" placeholder="Enter keyword" [ngModel]="newKeyword()" (ngModelChange)="newKeyword.set($event)">
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-primary w-100" (click)="addKeyword()" ngbTooltip="Add keyword to selected category">Add</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          @if (keywordsConfig(); as config) {
+            @for (key of categoryKeys; track key) {
+              <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <span>{{ getCategoryDisplayName(key) }}</span>
+                  <span class="badge bg-{{ getRiskClass(getCategory(config, key).severity) }}"
+                        ngbTooltip="Severity level for this category">
+                    {{ getCategory(config, key).severity }}
+                  </span>
+                </div>
+                <div class="card-body">
+                  @for (term of getCategory(config, key).terms; track term) {
+                    <span class="badge bg-light text-dark me-1 mb-1 p-2">{{ term }}</span>
+                  }
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </ng-template>
+    </li>
+
+    <li [ngbNavItem]="3">
+      <button ngbNavLink>Whitelist</button>
+      <ng-template ngbNavContent>
+        <div class="pt-4">
+          <div class="card mb-4">
+            <div class="card-body">
+              <h6 class="card-title">Add Whitelist Pattern</h6>
+              <p class="text-muted small">
+                Whitelisted terms will never be flagged as potential scams, even if they match other patterns.
+              </p>
+              <div class="row g-2">
+                <div class="col-md-10">
+                  <input type="text" class="form-control" placeholder="Enter pattern (e.g., tfsa contribution)" [ngModel]="newWhitelistPattern()" (ngModelChange)="newWhitelistPattern.set($event)">
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-primary w-100" (click)="addWhitelistPattern()" ngbTooltip="Add pattern to whitelist">Add</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          @if (keywordsConfig(); as config) {
+            <div class="card">
+              <div class="card-header">Current Whitelist Patterns</div>
+              <div class="card-body">
+                @for (pattern of config.whitelist.patterns; track pattern) {
+                  <span class="badge bg-success me-1 mb-1 p-2" ngbTooltip="Queries containing this pattern are never flagged">{{ pattern }}</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </ng-template>
+    </li>
+
+    <li [ngbNavItem]="4">
+      <button ngbNavLink>About</button>
+      <ng-template ngbNavContent>
+        <div class="card mt-4">
+          <div class="card-body">
+            <h5 class="card-title">CRA Scam Detection Dashboard</h5>
+            <p>
+              This application monitors Google Search Console data for potential scam-related
+              searches targeting Canada Revenue Agency (CRA) pages on canada.ca.
+            </p>
+
+            <h6 class="mt-4">How It Works</h6>
+            <ul>
+              <li>Fetches search query data from Google Search Console API</li>
+              <li>Filters for CRA-related URLs on canada.ca</li>
+              <li>Uses semantic embeddings (OpenAI) to match queries against known scam patterns</li>
+              <li>Analyzes CTR anomalies - low CTR at good position indicates users clicking scam sites</li>
+              <li>Compares current vs previous period to detect emerging threats</li>
+              <li>Calculates composite risk scores based on multiple factors</li>
+            </ul>
+
+            <h6 class="mt-4">Risk Score Formula</h6>
+            <ul>
+              <li><strong>With semantic match:</strong> Embedding (35%) + CTR (25%) + Position (15%) + Volume (15%) + Emergence (10%)</li>
+              <li><strong>Without match:</strong> CTR (40%) + Position (25%) + Volume (20%) + Emergence (15%)</li>
+            </ul>
+
+            <h6 class="mt-4">Detection Categories</h6>
+            <ul>
+              <li>
+                <span class="badge bg-danger">Critical</span>
+                Fake/expired benefits and illegitimate payment methods
+              </li>
+              <li>
+                <span class="badge bg-warning text-dark">High</span>
+                Threat language and urgency tactics
+              </li>
+              <li>
+                <span class="badge bg-info">Medium</span>
+                Suspicious modifiers and vague promises
+              </li>
+              <li>
+                <span class="badge bg-secondary">Low</span>
+                General suspicious patterns
+              </li>
+            </ul>
+
+            <h6 class="mt-4">Configuration</h6>
+            <p>
+              Keywords can be managed through the Keywords and Whitelist tabs above.
+              Use the <strong>Export Configuration</strong> button to download the current
+              configuration as a JSON file that can be deployed to the server.
+            </p>
+          </div>
+        </div>
+      </ng-template>
+    </li>
+  </ul>
+
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+
+<!-- Category Selection Modal -->
+<ng-template #categoryModal let-modal>
+  <div class="modal-header">
+    <h5 class="modal-title">Add to Keywords</h5>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
+  </div>
+  <div class="modal-body">
+    @if (pendingThreat(); as threat) {
+      <p>Add "<strong>{{ threat.query }}</strong>" to which category?</p>
+      <div class="list-group">
+        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                [class.active]="modalCategory() === 'fakeExpiredBenefits'"
+                (click)="modalCategory.set('fakeExpiredBenefits')">
+          Fake/Expired Benefits
+          <span class="badge bg-danger">Critical</span>
+        </button>
+        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                [class.active]="modalCategory() === 'illegitimatePaymentMethods'"
+                (click)="modalCategory.set('illegitimatePaymentMethods')">
+          Illegitimate Payment Methods
+          <span class="badge bg-danger">Critical</span>
+        </button>
+        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                [class.active]="modalCategory() === 'threatLanguage'"
+                (click)="modalCategory.set('threatLanguage')">
+          Threat Language
+          <span class="badge bg-warning text-dark">High</span>
+        </button>
+        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                [class.active]="modalCategory() === 'suspiciousModifiers'"
+                (click)="modalCategory.set('suspiciousModifiers')">
+          Suspicious Modifiers
+          <span class="badge bg-info">Medium</span>
+        </button>
+      </div>
+    }
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-secondary" (click)="modal.dismiss()">Cancel</button>
+    <button type="button" class="btn btn-primary" (click)="confirmAddKeyword()">Add Keyword</button>
+  </div>
+</ng-template>

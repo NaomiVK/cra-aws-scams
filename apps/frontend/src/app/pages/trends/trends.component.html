@@ -1,0 +1,243 @@
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h3 mb-1">
+        <i class="bi bi-graph-up-arrow text-primary me-2"></i>
+        CRA Misinformation and Scams
+      </h1>
+      <p class="text-muted mb-0">Monitor search interest for potential scam-related keywords in Canada</p>
+    </div>
+  </div>
+
+  <!-- Search Bar -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body py-3">
+      <div class="row g-3 align-items-end">
+        <div class="col-lg-6">
+          <label class="form-label small text-muted mb-1">Search term</label>
+          <div class="input-group input-group-lg">
+            <span class="input-group-text bg-white border-end-0">
+              <i class="bi bi-search text-muted"></i>
+            </span>
+            <input type="text" class="form-control border-start-0 ps-0"
+              placeholder="Enter a search term (e.g., cra rent relief)"
+              [ngModel]="searchTerm()"
+              (ngModelChange)="searchTerm.set($event)"
+              (keyup.enter)="searchTrends()" />
+          </div>
+        </div>
+        <div class="col-lg-3">
+          <label class="form-label small text-muted mb-1">Time period</label>
+          <select class="form-select form-select-lg"
+            [ngModel]="selectedTimePeriod()"
+            (ngModelChange)="selectedTimePeriod.set($event); onTimePeriodChange()">
+            @for (period of timePeriods; track period.value) {
+              <option [value]="period.value">{{ period.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="col-lg-3">
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-lg flex-grow-1" (click)="searchTrends()"
+              [disabled]="loading() || !searchTerm().trim()">
+              <i class="bi bi-search me-1"></i> Explore
+            </button>
+            <button class="btn btn-outline-secondary btn-lg" (click)="loadScamKeywordTrends()"
+              [disabled]="loading()" title="Load monitored scam keywords">
+              <i class="bi bi-shield-exclamation"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="card shadow-sm mb-4">
+      <div class="card-body text-center py-5">
+        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+        <h5 class="text-muted">Fetching trends data from Google...</h5>
+      </div>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (error()) {
+    <div class="alert alert-warning">
+      <strong>Error:</strong> {{ error() }}
+    </div>
+  }
+
+  <!-- Results -->
+  @if (!loading() && !error() && trendsData()) {
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="mb-0">
+        <span class="badge bg-primary me-2">{{ currentSearchTerm() }}</span>
+        <small class="text-muted">{{ getSelectedTimePeriodLabel() }} - Canada</small>
+      </h4>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card shadow-sm border-start border-primary border-4">
+          <div class="card-body">
+            <p class="text-muted small mb-1">Peak Interest</p>
+            <h2 class="mb-0">{{ getPeakInterest() }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card shadow-sm border-start border-info border-4">
+          <div class="card-body">
+            <p class="text-muted small mb-1">Average Interest</p>
+            <h2 class="mb-0">{{ getAverageInterest() }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card shadow-sm border-start border-success border-4">
+          <div class="card-body">
+            <p class="text-muted small mb-1">Trend Direction</p>
+            <h2 class="mb-0">
+              <i class="bi {{ getTrendDirection().icon }} {{ getTrendDirection().class }} me-2"></i>
+              <span [class]="getTrendDirection().class">{{ getTrendDirection().label }}</span>
+            </h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    @if (trendsData()!.interestOverTime && trendsData()!.interestOverTime.length > 0) {
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>Interest Over Time</h5>
+        </div>
+        <div class="card-body">
+          <apx-chart [series]="chartOptions.series!" [chart]="chartOptions.chart!"
+            [xaxis]="chartOptions.xaxis!" [yaxis]="chartOptions.yaxis!"
+            [stroke]="chartOptions.stroke!" [fill]="chartOptions.fill!"
+            [tooltip]="chartOptions.tooltip!" [dataLabels]="chartOptions.dataLabels!"
+            [legend]="chartOptions.legend!" [grid]="chartOptions.grid!"
+            [markers]="chartOptions.markers!" [colors]="chartOptions.colors!"></apx-chart>
+        </div>
+      </div>
+    }
+
+    <!-- Interest by Region - Canada Map -->
+    @if (regionData() || loadingRegion()) {
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="mb-0"><i class="bi bi-geo-alt me-2 text-primary"></i>Interest by Region (Canada)</h5>
+        </div>
+        <div class="card-body">
+          @if (loadingRegion()) {
+            <div class="text-center py-4">
+              <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+              <span class="text-muted">Loading regional data...</span>
+            </div>
+          } @else if (regionData() && getSortedRegions().length > 0) {
+            <div class="row">
+              <!-- Canada Map using Google Charts GeoChart -->
+              <div class="col-lg-8">
+                <p class="text-muted small mb-3">Search interest by province/territory (0-100 scale, relative to highest region)</p>
+                <div id="canada-geochart" style="width: 100%; height: 400px;"></div>
+              </div>
+
+              <!-- Legend and Top Regions List -->
+              <div class="col-lg-4">
+                <div class="bg-light rounded p-3 mb-3">
+                  <h6 class="mb-3">Legend</h6>
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="rounded me-2" style="width: 16px; height: 16px; background-color: #1a73e8;"></div>
+                    <small>75-100: Very High</small>
+                  </div>
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="rounded me-2" style="width: 16px; height: 16px; background-color: #4285f4;"></div>
+                    <small>50-74: High</small>
+                  </div>
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="rounded me-2" style="width: 16px; height: 16px; background-color: #8ab4f8;"></div>
+                    <small>25-49: Medium</small>
+                  </div>
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="rounded me-2" style="width: 16px; height: 16px; background-color: #c6dafc;"></div>
+                    <small>1-24: Low</small>
+                  </div>
+                  <div class="d-flex align-items-center">
+                    <div class="rounded me-2" style="width: 16px; height: 16px; background-color: #f1f3f4;"></div>
+                    <small>0: No Data</small>
+                  </div>
+                </div>
+
+                <!-- Top Regions List -->
+                <div class="border rounded p-3">
+                  <h6 class="mb-3">Top Regions</h6>
+                  @for (region of getSortedRegions().slice(0, 5); track region.geoCode; let i = $index) {
+                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                      <span class="small">
+                        <span class="badge bg-secondary me-1">{{ i + 1 }}</span>
+                        {{ region.geoName }}
+                      </span>
+                      <span class="badge" [style.background-color]="getRegionColor(region.value)"
+                            [style.color]="region.value >= 50 ? 'white' : '#333'">
+                        {{ region.value }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          } @else {
+            <p class="text-muted text-center py-3">No regional data available for this search term.</p>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Related Queries -->
+    @if (trendsData()!.relatedQueries && trendsData()!.relatedQueries.length > 0) {
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+          <h5 class="mb-0"><i class="bi bi-link-45deg me-2 text-primary"></i>Related Queries</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            @for (related of trendsData()!.relatedQueries; track related.keyword) {
+              <div class="col-lg-6 mb-4">
+                <div class="border rounded p-3">
+                  <h6 class="text-primary mb-3">{{ related.keyword }}</h6>
+                  @for (query of related.queries.slice(0, 8); track query.query; let i = $index) {
+                    <div class="py-2 border-bottom">
+                      <span class="badge bg-light text-dark me-2">{{ i + 1 }}</span>
+                      {{ query.query }}
+                    </div>
+                  } @empty {
+                    <p class="text-muted small">No related queries</p>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- Empty State -->
+  @if (!loading() && !error() && !trendsData()) {
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-search display-1 text-muted mb-3"></i>
+        <h4>Search for a term to get started</h4>
+        <p class="text-muted mb-4">Enter a search term above to explore Google Trends data.</p>
+        <button class="btn btn-outline-primary" (click)="loadScamKeywordTrends()">
+          <i class="bi bi-shield-exclamation me-1"></i> Load Scam Keywords
+        </button>
+      </div>
+    </div>
+  }
+</div>

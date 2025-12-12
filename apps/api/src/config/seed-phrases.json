@@ -1,0 +1,154 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-12-09",
+  "description": "Seed phrases for embedding-based scam detection. These are pre-embedded and compared against incoming queries using cosine similarity.",
+
+  "phrases": {
+    "fakeExpiredBenefits": {
+      "severity": "critical",
+      "terms": [
+        "grocery rebate 2024",
+        "grocery rebate 2025",
+        "grocery benefit",
+        "inflation relief payment",
+        "inflation relief cheque",
+        "inflation relief check",
+        "cost of living payment",
+        "cost of living benefit",
+        "cra bonus",
+        "cra bonus payment",
+        "cra $500",
+        "cra $600",
+        "cra $1000",
+        "emergency benefit 2024",
+        "emergency benefit 2025",
+        "cerb 2024",
+        "cerb 2025",
+        "cerb extension",
+        "cerb payment 2024",
+        "one time payment cra",
+        "one-time payment cra",
+        "unclaimed benefits",
+        "unclaimed tax refund",
+        "unclaimed cra money",
+        "secret benefit",
+        "secret cra benefit",
+        "hidden benefit",
+        "hidden tax credit",
+        "free money cra",
+        "free government money"
+      ]
+    },
+
+    "illegitimatePaymentMethods": {
+      "severity": "critical",
+      "terms": [
+        "cra gift card",
+        "cra itunes",
+        "cra itunes card",
+        "cra amazon card",
+        "cra amazon gift card",
+        "cra google play",
+        "cra google play card",
+        "cra steam card",
+        "cra prepaid card",
+        "cra bitcoin",
+        "cra crypto",
+        "cra cryptocurrency",
+        "cra western union",
+        "cra moneygram",
+        "cra wire transfer",
+        "cra e-transfer",
+        "cra etransfer",
+        "cra interac",
+        "cra interac payment",
+        "cra whatsapp",
+        "cra telegram",
+        "cra facebook message",
+        "cra text message",
+        "cra sms",
+        "canada revenue gift card",
+        "canada revenue bitcoin",
+        "pay cra with gift card",
+        "pay cra with bitcoin",
+        "pay taxes with gift card",
+        "pay taxes bitcoin"
+      ]
+    },
+
+    "threatLanguage": {
+      "severity": "high",
+      "terms": [
+        "cra arrest",
+        "cra warrant",
+        "cra arrest warrant",
+        "cra police",
+        "cra rcmp",
+        "cra deportation",
+        "cra lawsuit",
+        "cra legal action",
+        "cra court",
+        "cra jail",
+        "cra freeze account",
+        "cra seize assets",
+        "cra immediate action",
+        "cra immediate arrest",
+        "canada revenue arrest",
+        "canada revenue warrant",
+        "canada revenue lawsuit",
+        "cra threatening call",
+        "cra threatening letter"
+      ]
+    },
+
+    "suspiciousModifiers": {
+      "severity": "medium",
+      "terms": [
+        "cra claim now",
+        "cra apply now urgent",
+        "cra immediate payment",
+        "cra free money",
+        "cra secret benefit",
+        "cra hidden benefit",
+        "cra guaranteed payment",
+        "cra limited time",
+        "cra last chance",
+        "benefit claim now",
+        "benefit urgent",
+        "benefit guaranteed",
+        "cra 100% guaranteed"
+      ]
+    },
+
+    "scamPatterns": {
+      "severity": "high",
+      "terms": [
+        "cra rent relief",
+        "cra grocery rebate",
+        "cra carbon tax rebate scam",
+        "cerb repayment scam",
+        "cra refund scam",
+        "cra phone scam",
+        "cra email scam",
+        "cra text scam",
+        "fake cra call",
+        "fake cra email",
+        "fake cra text",
+        "cra scammer",
+        "cra fraud",
+        "cra phishing",
+        "cra scam 2024",
+        "cra scam 2025",
+        "is cra calling me legit",
+        "cra called me scam",
+        "cra voicemail scam"
+      ]
+    }
+  },
+
+  "settings": {
+    "similarityThreshold": 0.80,
+    "model": "text-embedding-3-large",
+    "dimensions": 3072
+  }
+}

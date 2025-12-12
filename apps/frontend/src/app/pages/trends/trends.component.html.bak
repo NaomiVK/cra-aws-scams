@@ -1,0 +1,186 @@
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h3 mb-0">Google Trends Analysis</h1>
+      <p class="text-muted">Monitor search interest for potential scam-related keywords</p>
+    </div>
+  </div>
+
+  <!-- Custom Search -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <div class="input-group">
+            <span class="input-group-text">
+              <i class="bi bi-search"></i>
+            </span>
+            <input
+              type="text"
+              class="form-control"
+              placeholder="Enter keywords separated by commas (e.g., grocery rebate, cra payment)"
+              [ngModel]="customKeywords()"
+              (ngModelChange)="customKeywords.set($event)"
+              (keyup.enter)="searchCustomKeywords()"
+            />
+            <button class="btn btn-primary" (click)="searchCustomKeywords()">
+              Search Trends
+            </button>
+          </div>
+        </div>
+        <div class="col-md-4 text-end">
+          <button class="btn btn-outline-secondary" (click)="loadScamKeywordTrends()">
+            <i class="bi bi-arrow-clockwise me-1"></i>
+            Refresh Scam Keywords
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading trends data from Google...</p>
+    </div>
+  }
+
+  <!-- Error State -->
+  @if (error()) {
+    <div class="alert alert-warning" role="alert">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      <strong>Note:</strong> {{ error() }}
+      <p class="mb-0 mt-2 small">
+        Google Trends data may be unavailable due to rate limiting.
+        Try again in a few minutes or use custom keywords.
+      </p>
+    </div>
+  }
+
+  <!-- Trends Content -->
+  @if (!loading() && !error() && trendsData()) {
+    <!-- Interest Over Time -->
+    @if (trendsData()!.interestOverTime && trendsData()!.interestOverTime.length > 0) {
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-graph-up me-2"></i>
+            Interest Over Time
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  @for (keyword of trendsData()!.keywords; track keyword) {
+                    <th>{{ keyword }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (point of trendsData()!.interestOverTime; track point.date) {
+                  <tr>
+                    <td>{{ point.date }}</td>
+                    @for (keyword of trendsData()!.keywords; track keyword) {
+                      <td>
+                        <span class="badge" [ngClass]="getInterestClass(point.values[keyword] || 0)">
+                          {{ point.values[keyword] || 0 }}
+                        </span>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Related Queries -->
+    @if (trendsData()!.relatedQueries && trendsData()!.relatedQueries.length > 0) {
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-link-45deg me-2"></i>
+            Related Queries
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            @for (related of trendsData()!.relatedQueries; track related.keyword) {
+              <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                  <div class="card-header bg-light">
+                    <strong>{{ related.keyword }}</strong>
+                  </div>
+                  <ul class="list-group list-group-flush">
+                    @for (query of related.queries.slice(0, 5); track query.query) {
+                      <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ query.query }}
+                        <span class="badge bg-primary">{{ query.value }}</span>
+                      </li>
+                    } @empty {
+                      <li class="list-group-item text-muted">No related queries</li>
+                    }
+                  </ul>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Interest by Region -->
+    @if (trendsData()!.interestByRegion && trendsData()!.interestByRegion.length > 0) {
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-geo-alt me-2"></i>
+            Interest by Region
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Region</th>
+                  @for (keyword of trendsData()!.keywords; track keyword) {
+                    <th>{{ keyword }}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (region of trendsData()!.interestByRegion; track region.geoName) {
+                  <tr>
+                    <td><strong>{{ region.geoName }}</strong></td>
+                    @for (keyword of trendsData()!.keywords; track keyword) {
+                      <td>
+                        <div class="progress" style="height: 20px;">
+                          <div
+                            class="progress-bar"
+                            [ngClass]="getInterestClass(region.values[keyword] || 0)"
+                            [style.width.%]="region.values[keyword] || 0"
+                          >
+                            {{ region.values[keyword] || 0 }}
+                          </div>
+                        </div>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    }
+  }
+</div>
