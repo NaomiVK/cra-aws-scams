@@ -50,6 +50,7 @@ service-account-credentials.json
 .env
 .env.local
 .env.*.local
+*.pem
 
 # Local environment files with API keys
 **/environments/environment.local.ts
