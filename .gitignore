@@ -56,4 +56,4 @@ service-account-credentials.json
 **/environments/environment.prod.local.ts
 
 # Project-specific
-CLAUDE.md
+*.md
