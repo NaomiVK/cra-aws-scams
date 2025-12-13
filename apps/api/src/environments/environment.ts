@@ -1,5 +1,5 @@
 export const environment = {
-  production: false,
+  production: process.env['NODE_ENV'] === 'production',
   port: 3000,
 
   // Google Search Console Configuration
