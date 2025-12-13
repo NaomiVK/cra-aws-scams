@@ -10,12 +10,19 @@ export class AwsConfigService implements OnModuleInit {
   // Cached secrets
   private secrets: Record<string, string> = {};
 
+  // Promise that resolves when secrets are loaded
+  private readyResolve!: () => void;
+  public readonly ready: Promise<void> = new Promise((resolve) => {
+    this.readyResolve = resolve;
+  });
+
   async onModuleInit() {
     if (environment.production) {
       await this.loadSecretsFromParameterStore();
     } else {
       this.loadSecretsFromEnv();
     }
+    this.readyResolve(); // Signal that loading is complete
   }
 
   private loadSecretsFromEnv() {

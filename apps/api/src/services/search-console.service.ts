@@ -41,6 +41,9 @@ export class SearchConsoleService implements OnModuleInit {
 
       if (environment.production) {
         // Production: load credentials from AWS Parameter Store
+        // Wait for AwsConfigService to finish loading secrets
+        await this.awsConfigService.ready;
+
         const credentialsJson = this.awsConfigService.getGscServiceAccount();
 
         if (!credentialsJson) {
