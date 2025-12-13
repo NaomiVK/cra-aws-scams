@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { google, searchconsole_v1 } from 'googleapis';
 import { CacheService } from './cache.service';
+import { AwsConfigService } from './aws-config.service';
 import { environment } from '../environments/environment';
 import {
   SearchAnalyticsRow,
@@ -17,7 +18,10 @@ export class SearchConsoleService implements OnModuleInit {
   private readonly siteUrl: string;
   private readonly craUrlFilters: string[];
 
-  constructor(private readonly cacheService: CacheService) {
+  constructor(
+    private readonly cacheService: CacheService,
+    private readonly awsConfigService: AwsConfigService,
+  ) {
     this.siteUrl = environment.google.siteUrl;
     this.craUrlFilters = environment.google.craUrlFilters;
   }
@@ -28,20 +32,42 @@ export class SearchConsoleService implements OnModuleInit {
 
   /**
    * Initialize Google Search Console API client
+   * In production: loads credentials from AWS Parameter Store
+   * In development: loads credentials from local file
    */
   private async initializeClient(): Promise<void> {
     try {
-      const credentialsPath = path.resolve(
-        process.cwd(),
-        'service-account-credentials.json'
-      );
+      let auth: InstanceType<typeof google.auth.GoogleAuth>;
 
-      this.logger.log(`Loading credentials from: ${credentialsPath}`);
+      if (environment.production) {
+        // Production: load credentials from AWS Parameter Store
+        const credentialsJson = this.awsConfigService.getGscServiceAccount();
 
-      const auth = new google.auth.GoogleAuth({
-        keyFile: credentialsPath,
-        scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
-      });
+        if (!credentialsJson) {
+          throw new Error('GSC_SERVICE_ACCOUNT not found in AWS Parameter Store');
+        }
+
+        this.logger.log('Loading GSC credentials from AWS Parameter Store');
+        const credentials = JSON.parse(credentialsJson);
+
+        auth = new google.auth.GoogleAuth({
+          credentials,
+          scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+        });
+      } else {
+        // Development: load credentials from local file
+        const credentialsPath = path.resolve(
+          process.cwd(),
+          'service-account-credentials.json'
+        );
+
+        this.logger.log(`Loading credentials from: ${credentialsPath}`);
+
+        auth = new google.auth.GoogleAuth({
+          keyFile: credentialsPath,
+          scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+        });
+      }
 
       const authClient = await auth.getClient();
       this.searchConsole = google.searchconsole({

@@ -35,6 +35,7 @@ export class AwsConfigService implements OnModuleInit {
       const parameterNames = [
         '/cra-scam/GOOGLE_MAPS_API_KEY',
         '/cra-scam/OPENAI_API_KEY',
+        '/cra-scam/GSC_SERVICE_ACCOUNT',
       ];
 
       for (const paramName of parameterNames) {
@@ -71,5 +72,9 @@ export class AwsConfigService implements OnModuleInit {
 
   getOpenAiApiKey(): string {
     return this.getSecret('OPENAI_API_KEY');
+  }
+
+  getGscServiceAccount(): string {
+    return this.getSecret('GSC_SERVICE_ACCOUNT');
   }
 }
