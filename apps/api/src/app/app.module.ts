@@ -11,6 +11,7 @@ import {
   TrendsService,
   EmergingThreatService,
   EmbeddingService,
+  AwsConfigService,
 } from '../services';
 
 // Controllers
@@ -36,6 +37,7 @@ import {
   ],
   providers: [
     AppService,
+    AwsConfigService,
     CacheService,
     SearchConsoleService,
     ScamDetectionService,

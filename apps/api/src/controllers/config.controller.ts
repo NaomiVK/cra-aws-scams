@@ -1,7 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
+import { AwsConfigService } from '../services';
 
 @Controller('config')
 export class ConfigController {
+  constructor(private readonly awsConfigService: AwsConfigService) {}
+
   /**
    * GET /api/config/maps-key
    * Returns the Google Maps API key for frontend use
@@ -11,7 +14,7 @@ export class ConfigController {
     return {
       success: true,
       data: {
-        apiKey: process.env.GOOGLE_MAPS_API_KEY || '',
+        apiKey: this.awsConfigService.getGoogleMapsApiKey(),
       },
     };
   }

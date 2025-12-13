@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import OpenAI from 'openai';
 import { CacheService } from './cache.service';
+import { AwsConfigService } from './aws-config.service';
 import * as seedPhrasesConfig from '../config/seed-phrases.json';
 
 type SeedPhraseCategory = {
@@ -39,13 +40,16 @@ export class EmbeddingService implements OnModuleInit {
   private readonly model: string;
   private initialized = false;
 
-  constructor(private readonly cacheService: CacheService) {
+  constructor(
+    private readonly cacheService: CacheService,
+    private readonly awsConfigService: AwsConfigService,
+  ) {
     this.similarityThreshold = seedPhrasesConfig.settings.similarityThreshold;
     this.model = seedPhrasesConfig.settings.model;
   }
 
   async onModuleInit() {
-    const apiKey = process.env['OPENAI_API_KEY'];
+    const apiKey = this.awsConfigService.getOpenAiApiKey();
 
     if (!apiKey) {
       this.logger.warn('OPENAI_API_KEY not set - embedding-based detection disabled');

@@ -5,3 +5,4 @@ export * from './comparison.service';
 export * from './trends.service';
 export * from './emerging-threat.service';
 export * from './embedding.service';
+export * from './aws-config.service';
