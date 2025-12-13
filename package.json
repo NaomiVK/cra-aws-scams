@@ -6,7 +6,7 @@
     "start": "nx run-many --target=serve --projects=api,frontend --parallel --output-style=stream",
     "start:api": "nx serve api",
     "start:frontend": "nx serve frontend",
-    "build": "nx run-many --target=build --projects=api,frontend",
+    "build": "nx run-many --target=build --projects=api,frontend --verbose",
     "build:api": "nx build api",
     "build:frontend": "nx build frontend",
     "lint": "nx run-many --target=lint --all",
