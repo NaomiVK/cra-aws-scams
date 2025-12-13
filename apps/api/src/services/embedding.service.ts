@@ -49,6 +49,9 @@ export class EmbeddingService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    // Wait for AwsConfigService to finish loading secrets
+    await this.awsConfigService.ready;
+
     const apiKey = this.awsConfigService.getOpenAiApiKey();
 
     if (!apiKey) {
