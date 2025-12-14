@@ -50,9 +50,9 @@ export class ComparisonComponent implements OnInit {
   sortDirection = signal<SortDirection>('desc');
   minChangeFilter = signal<number>(0);
 
-  // New/Dropped terms filtering
-  minNewTermImpressions = signal<number>(0);
-  minDroppedTermImpressions = signal<number>(0);
+  // New/Dropped terms filtering (all, high, low)
+  newTermsFilter = signal<'all' | 'high' | 'low'>('all');
+  droppedTermsFilter = signal<'all' | 'high' | 'low'>('all');
 
   // Computed filtered and sorted terms
   filteredTrendingTerms = computed(() => {
@@ -218,18 +218,28 @@ export class ComparisonComponent implements OnInit {
   getNewTerms(): TermComparison[] {
     const data = this.comparisonData();
     if (!data) return [];
-    const minImpressions = this.minNewTermImpressions();
+    const filter = this.newTermsFilter();
     return data.terms
-      .filter(t => t.isNew && t.current.impressions >= minImpressions)
+      .filter(t => {
+        if (!t.isNew) return false;
+        if (filter === 'high') return t.current.impressions >= 500;
+        if (filter === 'low') return t.current.impressions < 500;
+        return true;
+      })
       .sort((a, b) => b.current.impressions - a.current.impressions);
   }
 
   getRemovedTerms(): TermComparison[] {
     const data = this.comparisonData();
     if (!data) return [];
-    const minImpressions = this.minDroppedTermImpressions();
+    const filter = this.droppedTermsFilter();
     return data.terms
-      .filter(t => t.isGone && t.previous.impressions >= minImpressions)
+      .filter(t => {
+        if (!t.isGone) return false;
+        if (filter === 'high') return t.previous.impressions >= 500;
+        if (filter === 'low') return t.previous.impressions < 500;
+        return true;
+      })
       .sort((a, b) => b.previous.impressions - a.previous.impressions);
   }
 
