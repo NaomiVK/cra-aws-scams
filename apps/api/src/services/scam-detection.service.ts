@@ -34,7 +34,29 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
+    // Wait for DynamoDB service to be ready before loading
+    await this.waitForDynamoDB();
     await this.loadFromDynamoDB();
+  }
+
+  /**
+   * Wait for DynamoDB service to initialize (max 10 seconds)
+   */
+  private async waitForDynamoDB(): Promise<void> {
+    const maxWait = 10000; // 10 seconds
+    const checkInterval = 100; // 100ms
+    let waited = 0;
+
+    while (!this.dynamoDbService.isReady() && waited < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      waited += checkInterval;
+    }
+
+    if (this.dynamoDbService.isReady()) {
+      this.logger.log(`[STARTUP] DynamoDB service ready after ${waited}ms`);
+    } else {
+      this.logger.warn(`[STARTUP] DynamoDB service not ready after ${maxWait}ms, proceeding with JSON config only`);
+    }
   }
 
   /**
