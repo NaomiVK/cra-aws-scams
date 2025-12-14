@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class ScamDetectionService implements OnModuleInit {
   private readonly logger = new Logger(ScamDetectionService.name);
   private keywordsConfig: ScamKeywordsConfig;
+  private seenTerms: Map<string, string> = new Map(); // query -> firstSeen ISO date
 
   constructor(
     private readonly cacheService: CacheService,
@@ -128,6 +129,10 @@ export class ScamDetectionService implements OnModuleInit {
       }
       this.logger.log(`  - whitelist: ${this.keywordsConfig.whitelist.patterns.length} patterns`);
 
+      // Load seen flagged terms (for new vs returning tracking)
+      this.seenTerms = await this.dynamoDbService.getSeenTerms();
+      this.logger.log(`[STARTUP] Loaded ${this.seenTerms.size} previously seen flagged terms`);
+
     } catch (error) {
       this.logger.warn(`[STARTUP] Failed to load from DynamoDB: ${error.message}`);
     }
@@ -173,6 +178,49 @@ export class ScamDetectionService implements OnModuleInit {
             flaggedTerms.push(result);
           }
         }
+
+        // Update status based on whether terms have been seen before
+        // Terms seen within 7 days are still "new", older ones are "active" (returning)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const newlySeenTerms: string[] = [];
+
+        for (const term of flaggedTerms) {
+          const normalizedQuery = term.query.toLowerCase().trim();
+          const previousFirstSeen = this.seenTerms.get(normalizedQuery);
+
+          if (previousFirstSeen) {
+            // Term was seen before
+            term.firstDetected = previousFirstSeen;
+            const firstSeenDate = new Date(previousFirstSeen);
+            if (firstSeenDate < sevenDaysAgo) {
+              // Seen more than 7 days ago = returning/active
+              term.status = 'active';
+            } else {
+              // Seen within last 7 days = still "new"
+              term.status = 'new';
+            }
+          } else {
+            // Truly new term - never seen before
+            term.firstDetected = new Date().toISOString();
+            term.status = 'new';
+            newlySeenTerms.push(normalizedQuery);
+            // Update local cache
+            this.seenTerms.set(normalizedQuery, term.firstDetected);
+          }
+        }
+
+        // Persist newly seen terms to DynamoDB (don't await to avoid blocking)
+        if (newlySeenTerms.length > 0) {
+          this.logger.log(`[DETECT] Found ${newlySeenTerms.length} truly new terms, persisting to DynamoDB`);
+          this.dynamoDbService.markTermsAsSeen(newlySeenTerms).catch((err) => {
+            this.logger.warn(`[DETECT] Failed to persist seen terms: ${err.message}`);
+          });
+        }
+
+        const newCount = flaggedTerms.filter((t) => t.status === 'new').length;
+        const activeCount = flaggedTerms.filter((t) => t.status === 'active').length;
+        this.logger.log(`[DETECT] Term status breakdown: ${newCount} new (within 7 days), ${activeCount} returning`);
 
         // Sort by severity then impressions
         flaggedTerms.sort((a, b) => {

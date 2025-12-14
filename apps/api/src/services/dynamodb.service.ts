@@ -299,4 +299,101 @@ export class DynamoDbService implements OnModuleInit {
       return false;
     }
   }
+
+  // ==================== SEEN TERMS TRACKING ====================
+
+  /**
+   * Get all seen flagged terms from DynamoDB
+   * Used to track which terms are "new" vs "returning"
+   */
+  async getSeenTerms(): Promise<Map<string, string>> {
+    if (!this.initialized) return new Map();
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return new Map();
+
+    try {
+      const command = new ScanCommand({
+        TableName: this.tableName,
+        FilterExpression: 'category = :cat',
+        ExpressionAttributeValues: { ':cat': 'seen-term' },
+      });
+
+      const response = await client.send(command);
+      const items = response.Items || [];
+
+      const seenMap = new Map<string, string>();
+      for (const item of items) {
+        seenMap.set(item.term as string, item.firstSeen as string);
+      }
+
+      this.logger.log(`Loaded ${seenMap.size} seen terms from DynamoDB`);
+      return seenMap;
+    } catch (error) {
+      if (error.name === 'ResourceNotFoundException') return new Map();
+      this.logger.error(`Failed to scan seen terms: ${error.message}`);
+      return new Map();
+    }
+  }
+
+  /**
+   * Mark a term as seen (only if not already seen)
+   * Returns the firstSeen date (existing or new)
+   */
+  async markTermAsSeen(query: string): Promise<string> {
+    if (!this.initialized) return new Date().toISOString();
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return new Date().toISOString();
+
+    const normalizedQuery = query.toLowerCase().trim();
+    const now = new Date().toISOString();
+
+    try {
+      // Use conditional write to only set if not exists
+      const command = new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          category: 'seen-term',
+          term: normalizedQuery,
+          firstSeen: now,
+        },
+        ConditionExpression: 'attribute_not_exists(#t)',
+        ExpressionAttributeNames: { '#t': 'term' },
+      });
+
+      await client.send(command);
+      return now; // New term
+    } catch (error) {
+      if (error.name === 'ConditionalCheckFailedException') {
+        // Term already exists, that's fine
+        return ''; // Empty means it was already seen
+      }
+      this.logger.error(`Failed to mark term as seen: ${error.message}`);
+      return now;
+    }
+  }
+
+  /**
+   * Batch mark multiple terms as seen
+   * Returns map of query -> firstSeen date
+   */
+  async markTermsAsSeen(queries: string[]): Promise<Map<string, string>> {
+    const results = new Map<string, string>();
+
+    // Process in batches of 25 (DynamoDB limit)
+    for (let i = 0; i < queries.length; i += 25) {
+      const batch = queries.slice(i, i + 25);
+      await Promise.all(
+        batch.map(async (query) => {
+          const firstSeen = await this.markTermAsSeen(query);
+          if (firstSeen) {
+            results.set(query.toLowerCase().trim(), firstSeen);
+          }
+        })
+      );
+    }
+
+    return results;
+  }
 }

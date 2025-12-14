@@ -139,6 +139,19 @@ export type ExportData = {
 };
 
 /**
+ * Trending term with comparison data
+ */
+export type TrendingTermData = {
+  query: string;
+  severity: Severity;
+  matchedCategory: string;
+  currentImpressions: number;
+  previousImpressions: number;
+  changeAmount: number;
+  changePercent: number;
+};
+
+/**
  * Dashboard data response
  */
 export type DashboardData = {
@@ -153,9 +166,13 @@ export type DashboardData = {
   flaggedTerms: FlaggedTerm[];
   criticalAlerts: FlaggedTerm[];
   newTerms: FlaggedTerm[];
-  trendingTerms: FlaggedTerm[];
+  trendingTerms: TrendingTermData[];
   totalQueriesAnalyzed: number;
   period: {
+    startDate: string;
+    endDate: string;
+  };
+  comparisonPeriod?: {
     startDate: string;
     endDate: string;
   };

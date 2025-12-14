@@ -168,7 +168,7 @@
       <!-- New Terms Panel -->
       <div class="col-lg-4 mb-4">
         <div class="card h-100">
-          <div class="card-header bg-info text-white" ngbTooltip="Queries that appeared in the current period but not in the previous period">
+          <div class="card-header bg-info text-white" ngbTooltip="Flagged terms first detected within the last 7 days">
             <h5 class="mb-0">
               <i class="bi bi-plus-circle me-2"></i>
               New Terms Detected
@@ -184,7 +184,7 @@
                       {{ term.severity }}
                     </span>
                   </div>
-                  <span class="badge bg-secondary" ngbTooltip="Impressions since first detected">{{ term.impressions | number }} imp</span>
+                  <span class="badge bg-secondary" ngbTooltip="Impressions in selected period">{{ term.impressions | number }} imp</span>
                 </div>
                 <div class="small text-muted">{{ term.matchedCategory }}</div>
               </div>
@@ -218,9 +218,13 @@
                     </span>
                   </div>
                   <div class="text-end">
-                    <span class="badge bg-success" ngbTooltip="Impression increase from previous period">+{{ term.impressions | number }}</span>
+                    <span class="badge bg-success" [ngbTooltip]="'Was ' + (term.previousImpressions | number) + ' impressions last period'">
+                      +{{ term.changeAmount | number }}
+                      <small>({{ term.changePercent > 999 ? '>999' : (term.changePercent | number:'1.0-0') }}%)</small>
+                    </span>
                   </div>
                 </div>
+                <div class="small text-muted">{{ term.currentImpressions | number }} impressions now</div>
               </div>
             } @empty {
               <div class="p-3 text-center text-muted">
