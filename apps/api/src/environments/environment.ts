@@ -25,8 +25,8 @@ export const environment = {
 
   // Scam Detection Settings
   scamDetection: {
-    impressionThreshold: 500, // Minimum impressions to flag
-    defaultDateRangeDays: 28, // Default analysis period
+    impressionThreshold: 100, // Minimum impressions to flag
+    defaultDateRangeDays: 7, // Default analysis period
   },
 
   // Embedding Settings
