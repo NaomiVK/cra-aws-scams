@@ -1,7 +1,8 @@
-import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, Logger, forwardRef, Inject, OnModuleInit } from '@nestjs/common';
 import { CacheService } from './cache.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
+import { DynamoDbService } from './dynamodb.service';
 import {
   FlaggedTerm,
   Severity,
@@ -15,7 +16,7 @@ import * as scamKeywordsJson from '../config/scam-keywords.json';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
-export class ScamDetectionService {
+export class ScamDetectionService implements OnModuleInit {
   private readonly logger = new Logger(ScamDetectionService.name);
   private keywordsConfig: ScamKeywordsConfig;
 
@@ -24,11 +25,53 @@ export class ScamDetectionService {
     private readonly searchConsoleService: SearchConsoleService,
     @Inject(forwardRef(() => EmbeddingService))
     private readonly embeddingService: EmbeddingService,
+    private readonly dynamoDbService: DynamoDbService,
   ) {
     this.keywordsConfig = scamKeywordsJson as unknown as ScamKeywordsConfig;
     this.logger.log(
       `Loaded scam keywords config v${this.keywordsConfig.version}`
     );
+  }
+
+  async onModuleInit(): Promise<void> {
+    await this.loadFromDynamoDB();
+  }
+
+  /**
+   * Load keywords and whitelist from DynamoDB and merge with JSON config
+   */
+  private async loadFromDynamoDB(): Promise<void> {
+    try {
+      // Load keywords from DynamoDB
+      const dbKeywords = await this.dynamoDbService.getAllKeywords();
+      let keywordsAdded = 0;
+      for (const record of dbKeywords) {
+        const categoryName = record.category.replace('keyword:', '');
+        const category = this.keywordsConfig.categories[categoryName as keyof ScamKeywordsConfig['categories']];
+        if (category && !category.terms.includes(record.term)) {
+          category.terms.push(record.term);
+          keywordsAdded++;
+        }
+      }
+      if (keywordsAdded > 0) {
+        this.logger.log(`Loaded ${keywordsAdded} keywords from DynamoDB`);
+      }
+
+      // Load whitelist from DynamoDB
+      const dbWhitelist = await this.dynamoDbService.getAllWhitelist();
+      let whitelistAdded = 0;
+      for (const record of dbWhitelist) {
+        if (!this.keywordsConfig.whitelist.patterns.includes(record.term)) {
+          this.keywordsConfig.whitelist.patterns.push(record.term);
+          whitelistAdded++;
+        }
+      }
+      if (whitelistAdded > 0) {
+        this.logger.log(`Loaded ${whitelistAdded} whitelist patterns from DynamoDB`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to load from DynamoDB: ${error.message}`);
+    }
   }
 
   /**
@@ -352,6 +395,9 @@ export class ScamDetectionService {
         this.logger.log(`Added "${term}" to ${category}`);
         this.cacheService.flush();
 
+        // Persist to DynamoDB
+        await this.dynamoDbService.addKeyword(term, category);
+
         // Also add to embedding service for semantic matching
         const severity = this.keywordsConfig.categories[category].severity;
         await this.embeddingService.addSeedPhrase(term, category, severity);
@@ -359,12 +405,15 @@ export class ScamDetectionService {
     }
   }
 
-  addWhitelistPattern(pattern: string): void {
+  async addWhitelistPattern(pattern: string): Promise<void> {
     const patterns = this.keywordsConfig.whitelist.patterns;
     if (!patterns.includes(pattern.toLowerCase())) {
       patterns.push(pattern.toLowerCase());
       this.logger.log(`Added "${pattern}" to whitelist`);
       this.cacheService.flush();
+
+      // Persist to DynamoDB
+      await this.dynamoDbService.addWhitelist(pattern);
     }
   }
 }

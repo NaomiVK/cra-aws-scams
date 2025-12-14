@@ -179,12 +179,11 @@
               <i class="bi bi-plus-circle me-2"></i>
               New Terms ({{ getNewTerms().length }})
             </h5>
-            <select class="form-select form-select-sm" style="width: 100px;"
-              [ngModel]="newTermsFilter()"
-              (ngModelChange)="newTermsFilter.set($event)">
-              <option value="all">All</option>
-              <option value="high">High</option>
-              <option value="low">Low</option>
+            <select class="form-select form-select-sm" style="width: 130px;"
+              [ngModel]="newTermsSort()"
+              (ngModelChange)="newTermsSort.set($event)">
+              <option value="desc">Highest First</option>
+              <option value="asc">Lowest First</option>
             </select>
           </div>
           <div class="card-body scrollable" style="max-height: 300px; overflow-y: auto;">
@@ -209,12 +208,11 @@
               <i class="bi bi-dash-circle me-2"></i>
               Dropped Off ({{ getRemovedTerms().length }})
             </h5>
-            <select class="form-select form-select-sm" style="width: 100px;"
-              [ngModel]="droppedTermsFilter()"
-              (ngModelChange)="droppedTermsFilter.set($event)">
-              <option value="all">All</option>
-              <option value="high">High</option>
-              <option value="low">Low</option>
+            <select class="form-select form-select-sm" style="width: 130px;"
+              [ngModel]="droppedTermsSort()"
+              (ngModelChange)="droppedTermsSort.set($event)">
+              <option value="desc">Highest First</option>
+              <option value="asc">Lowest First</option>
             </select>
           </div>
           <div class="card-body scrollable" style="max-height: 300px; overflow-y: auto;">

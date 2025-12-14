@@ -50,9 +50,9 @@ export class ComparisonComponent implements OnInit {
   sortDirection = signal<SortDirection>('desc');
   minChangeFilter = signal<number>(0);
 
-  // New/Dropped terms filtering (all, high, low)
-  newTermsFilter = signal<'all' | 'high' | 'low'>('all');
-  droppedTermsFilter = signal<'all' | 'high' | 'low'>('all');
+  // New/Dropped terms sort order
+  newTermsSort = signal<'desc' | 'asc'>('desc');
+  droppedTermsSort = signal<'desc' | 'asc'>('desc');
 
   // Computed filtered and sorted terms
   filteredTrendingTerms = computed(() => {
@@ -218,29 +218,23 @@ export class ComparisonComponent implements OnInit {
   getNewTerms(): TermComparison[] {
     const data = this.comparisonData();
     if (!data) return [];
-    const filter = this.newTermsFilter();
+    const sortOrder = this.newTermsSort();
     return data.terms
-      .filter(t => {
-        if (!t.isNew) return false;
-        if (filter === 'high') return t.current.impressions >= 500;
-        if (filter === 'low') return t.current.impressions < 500;
-        return true;
-      })
-      .sort((a, b) => b.current.impressions - a.current.impressions);
+      .filter(t => t.isNew)
+      .sort((a, b) => sortOrder === 'desc'
+        ? b.current.impressions - a.current.impressions
+        : a.current.impressions - b.current.impressions);
   }
 
   getRemovedTerms(): TermComparison[] {
     const data = this.comparisonData();
     if (!data) return [];
-    const filter = this.droppedTermsFilter();
+    const sortOrder = this.droppedTermsSort();
     return data.terms
-      .filter(t => {
-        if (!t.isGone) return false;
-        if (filter === 'high') return t.previous.impressions >= 500;
-        if (filter === 'low') return t.previous.impressions < 500;
-        return true;
-      })
-      .sort((a, b) => b.previous.impressions - a.previous.impressions);
+      .filter(t => t.isGone)
+      .sort((a, b) => sortOrder === 'desc'
+        ? b.previous.impressions - a.previous.impressions
+        : a.previous.impressions - b.previous.impressions);
   }
 
   getSelectedPresetLabel(): string {
