@@ -88,6 +88,14 @@ export class TrendsService {
             endTime,
           });
 
+          // Log raw response for debugging
+          if (typeof result === 'string' && result.startsWith('<')) {
+            this.logger.error(`[TRENDS] Google returned HTML instead of JSON for "${keyword}". First 500 chars: ${result.substring(0, 500)}`);
+            return null;
+          }
+
+          this.logger.debug(`[TRENDS] Raw response type: ${typeof result}, length: ${result?.length || 0}`);
+
           const parsed = JSON.parse(result);
           const timelineData = parsed.default?.timelineData || [];
 

@@ -156,8 +156,19 @@ export class DynamoDbService implements OnModuleInit {
 
   // ==================== KEYWORDS ====================
 
+  // Valid keyword category names (without prefix)
+  private readonly KEYWORD_CATEGORIES = [
+    'fakeExpiredBenefits',
+    'illegitimatePaymentMethods',
+    'threatLanguage',
+    'suspiciousModifiers',
+  ];
+
   /**
-   * Get all keywords from DynamoDB (category starts with "keyword:")
+   * Get all keywords from DynamoDB
+   * Looks for both formats:
+   * - category = "keyword:categoryName" (new format)
+   * - category = "categoryName" (legacy/seed phrase format)
    */
   async getAllKeywords(): Promise<KeywordRecord[]> {
     if (!this.initialized) return [];
@@ -166,14 +177,35 @@ export class DynamoDbService implements OnModuleInit {
     if (!client) return [];
 
     try {
+      // Build filter for all valid keyword categories (both formats)
+      const filterParts: string[] = [];
+      const expressionValues: Record<string, string> = {};
+
+      this.KEYWORD_CATEGORIES.forEach((cat, idx) => {
+        // Match "keyword:categoryName" format
+        filterParts.push(`category = :cat${idx}`);
+        expressionValues[`:cat${idx}`] = `keyword:${cat}`;
+        // Match "categoryName" format (legacy)
+        filterParts.push(`category = :catLegacy${idx}`);
+        expressionValues[`:catLegacy${idx}`] = cat;
+      });
+
       const command = new ScanCommand({
         TableName: this.tableName,
-        FilterExpression: 'begins_with(category, :prefix)',
-        ExpressionAttributeValues: { ':prefix': 'keyword:' },
+        FilterExpression: filterParts.join(' OR '),
+        ExpressionAttributeValues: expressionValues,
       });
 
       const response = await client.send(command);
-      const items = (response.Items || []) as KeywordRecord[];
+      const items = (response.Items || []).map(item => {
+        // Normalize category to "keyword:categoryName" format for consistency
+        const category = item.category as string;
+        const normalizedCategory = category.startsWith('keyword:')
+          ? category
+          : `keyword:${category}`;
+        return { ...item, category: normalizedCategory } as KeywordRecord;
+      });
+
       this.logger.log(`Loaded ${items.length} keywords from DynamoDB`);
       return items;
     } catch (error) {
