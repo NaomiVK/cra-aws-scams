@@ -217,6 +217,27 @@ export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
 export type EmergingThreatStatus = 'pending' | 'added' | 'whitelisted' | 'dismissed';
 
 /**
+ * Velocity metrics for emerging threat detection
+ * Tracks how fast a term is growing (impressions per day)
+ */
+export type VelocityMetrics = {
+  impressionsPerDay: number;     // Average daily impression growth
+  velocityScore: number;         // 0-1, normalized velocity (1 = very fast growth)
+  trend: 'accelerating' | 'steady' | 'decelerating';
+};
+
+/**
+ * Google Trends data for cross-referencing
+ * Terms trending on Google Trends get higher risk scores
+ */
+export type TrendsData = {
+  interest: number;          // 0-100 interest score
+  trend: 'up' | 'down' | 'stable';
+  changePercent: number;     // Recent change in interest
+  isTrending: boolean;       // True if interest > 50 and trending up
+};
+
+/**
  * Emerging Threat - a potential scam term detected through CTR anomaly analysis
  * The key insight: High impressions + Low CTR = users seeing CRA result but clicking scam sites
  */
@@ -226,7 +247,7 @@ export type EmergingThreat = {
   riskScore: number;        // 0-100 composite score
   riskLevel: RiskLevel;
 
-  // CTR-based analysis (KEY SIGNAL - 40% of risk score)
+  // CTR-based analysis (KEY SIGNAL)
   ctrAnomaly: CTRAnomaly;
 
   // Pattern matching results
@@ -255,6 +276,12 @@ export type EmergingThreat = {
     impressionsPercent: number;
     ctrDelta: number;       // Current CTR - Previous CTR (negative = worsening)
   };
+
+  // Velocity metrics (NEW) - how fast the term is growing
+  velocity?: VelocityMetrics;
+
+  // Google Trends data (NEW) - cross-reference with public search trends
+  trendsData?: TrendsData;
 
   isNew: boolean;           // First appearance in current period
   firstSeen: string;        // ISO date

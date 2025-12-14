@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { CacheService } from './cache.service';
 import { SearchConsoleService } from './search-console.service';
+import { EmbeddingService } from './embedding.service';
 import {
   FlaggedTerm,
   Severity,
@@ -20,7 +21,9 @@ export class ScamDetectionService {
 
   constructor(
     private readonly cacheService: CacheService,
-    private readonly searchConsoleService: SearchConsoleService
+    private readonly searchConsoleService: SearchConsoleService,
+    @Inject(forwardRef(() => EmbeddingService))
+    private readonly embeddingService: EmbeddingService,
   ) {
     this.keywordsConfig = scamKeywordsJson as unknown as ScamKeywordsConfig;
     this.logger.log(
@@ -186,7 +189,7 @@ export class ScamDetectionService {
    * Uses word-boundary matching to prevent partial matches
    * e.g., "t4" should not whitelist "fake t4 scam"
    */
-  private isWhitelisted(query: string): boolean {
+  isWhitelisted(query: string): boolean {
     const whitelist = this.keywordsConfig.whitelist.patterns;
     return whitelist.some((pattern) => {
       // Escape special regex characters in the pattern
@@ -341,13 +344,17 @@ export class ScamDetectionService {
     return this.keywordsConfig.trendsKeywords;
   }
 
-  addKeyword(term: string, category: keyof ScamKeywordsConfig['categories']): void {
+  async addKeyword(term: string, category: keyof ScamKeywordsConfig['categories']): Promise<void> {
     if (this.keywordsConfig.categories[category]) {
       const terms = this.keywordsConfig.categories[category].terms;
       if (!terms.includes(term.toLowerCase())) {
         terms.push(term.toLowerCase());
         this.logger.log(`Added "${term}" to ${category}`);
         this.cacheService.flush();
+
+        // Also add to embedding service for semantic matching
+        const severity = this.keywordsConfig.categories[category].severity;
+        await this.embeddingService.addSeedPhrase(term, category, severity);
       }
     }
   }

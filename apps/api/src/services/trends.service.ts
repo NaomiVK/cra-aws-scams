@@ -29,7 +29,7 @@ export class TrendsService {
    */
   private getTimeRangeDates(timeRange: string): { startTime: Date; endTime: Date } {
     const endTime = new Date();
-    let startTime = new Date();
+    const startTime = new Date();
 
     switch (timeRange) {
       case 'now 1-H':

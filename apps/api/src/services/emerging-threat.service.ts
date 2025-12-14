@@ -4,6 +4,7 @@ import { ComparisonService } from './comparison.service';
 import { ScamDetectionService } from './scam-detection.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
+import { TrendsService } from './trends.service';
 import {
   EmergingThreat,
   EmergingThreatsResponse,
@@ -11,30 +12,20 @@ import {
   CTRBenchmarks,
   RiskLevel,
   TermComparison,
-  DateRange,
   PaginationInfo,
+  VelocityMetrics,
+  TrendsData,
 } from '@cra-scam-detection/shared-types';
 
 /**
  * Pagination constants
  */
 const MAX_TOTAL_THREATS = 5000;
-const PAGE_SIZE = 1000;
-const MAX_PAGES = 5;
+const PAGE_SIZE = 500;
+const MAX_PAGES = 10;
 import { environment } from '../environments/environment';
 import { v4 as uuidv4 } from 'uuid';
 import * as stringSimilarity from 'string-similarity';
-
-/**
- * Fallback CTR benchmarks (used when no dynamic data available)
- * Based on typical Google Search Console data for legitimate queries
- */
-const FALLBACK_CTR_BENCHMARKS: Record<string, { min: number; expected: number }> = {
-  '1-3': { min: 0.03, expected: 0.20 },   // Position 1-3: expect 15-30%, anomaly if < 3%
-  '4-8': { min: 0.02, expected: 0.10 },   // Position 4-8: expect 8-15%, anomaly if < 2%
-  '9-15': { min: 0.01, expected: 0.05 },  // Position 9-15: expect 3-8%, anomaly if < 1%
-  '16+': { min: 0.005, expected: 0.02 },  // Position 16+: expect <3%, anomaly if < 0.5%
-};
 
 /**
  * Dynamic pattern detection regexes
@@ -57,7 +48,8 @@ export class EmergingThreatService {
     private readonly comparisonService: ComparisonService,
     private readonly scamDetectionService: ScamDetectionService,
     private readonly searchConsoleService: SearchConsoleService,
-    private readonly embeddingService: EmbeddingService
+    private readonly embeddingService: EmbeddingService,
+    private readonly trendsService: TrendsService,
   ) {}
 
   /**
@@ -134,12 +126,12 @@ export class EmergingThreatService {
         );
 
         // STEP 2: Batch analyze candidates with embeddings (if service is ready)
-        let embeddingResults: Map<string, { similarity: number; matchedPhrase: string; category: string; severity: string }> = new Map();
+        const embeddingResults: Map<string, { similarity: number; matchedPhrase: string; category: string; severity: string }> = new Map();
 
         if (this.embeddingService.isReady() && candidateTerms.length > 0) {
           try {
             const queries = candidateTerms.map(t => t.query);
-            const results = await this.embeddingService.analyzeQueries(queries, 0.75); // Lower threshold for candidates
+            const results = await this.embeddingService.analyzeQueries(queries, 0.80); // Match seed-phrases.json threshold
 
             for (const result of results) {
               if (result.topMatch) {
@@ -165,13 +157,19 @@ export class EmergingThreatService {
 
         for (const term of candidateTerms) {
           const embeddingMatch = embeddingResults.get(term.query.toLowerCase());
-          const threat = this.analyzeTermForThreats(term, benchmarks, embeddingMatch);
+          const threat = this.analyzeTermForThreats(term, benchmarks, days, embeddingMatch);
           if (threat && threat.riskScore >= 30) {
             allThreats.push(threat);
           }
         }
 
         // Sort by risk score descending
+        allThreats.sort((a, b) => b.riskScore - a.riskScore);
+
+        // Enrich high-risk threats with Google Trends data
+        await this.enrichWithTrendsData(allThreats);
+
+        // Re-sort after trends enrichment (scores may have changed)
         allThreats.sort((a, b) => b.riskScore - a.riskScore);
 
         // Limit to max total threats
@@ -221,18 +219,50 @@ export class EmergingThreatService {
   }
 
   /**
+   * Calculate velocity metrics for a term
+   * Velocity = how fast impressions are growing per day
+   */
+  private calculateVelocity(term: TermComparison, days: number): VelocityMetrics {
+    const impressionDelta = term.change.impressions;
+    const impressionsPerDay = days > 0 ? impressionDelta / days : 0;
+
+    // Normalize to 0-1 (500+ impressions/day = max velocity)
+    const velocityScore = Math.min(1, Math.max(0, impressionsPerDay / 500));
+
+    // Determine trend based on growth pattern
+    let trend: 'accelerating' | 'steady' | 'decelerating';
+    if (term.isNew || term.change.impressionsPercent > 100) {
+      trend = 'accelerating';
+    } else if (term.change.impressionsPercent > 0) {
+      trend = 'steady';
+    } else {
+      trend = 'decelerating';
+    }
+
+    return {
+      impressionsPerDay: Math.round(impressionsPerDay),
+      velocityScore,
+      trend,
+    };
+  }
+
+  /**
    * Analyze a single term for threat indicators
    * @param embeddingMatch Optional embedding match result from batch analysis
+   * @param days Number of days in the comparison period (for velocity calculation)
    */
   private analyzeTermForThreats(
     term: TermComparison,
     benchmarks: CTRBenchmarks,
+    days: number,
     embeddingMatch?: { similarity: number; matchedPhrase: string; category: string; severity: string }
   ): EmergingThreat | null {
     const query = term.query.toLowerCase();
 
-    // Skip if whitelisted (use scam detection service's whitelist)
-    // We'll check this in the controller instead
+    // Skip if whitelisted
+    if (this.scamDetectionService.isWhitelisted(query)) {
+      return null;
+    }
 
     // Calculate CTR anomaly using dynamic benchmarks
     const ctrAnomaly = this.calculateCTRAnomaly(
@@ -249,8 +279,11 @@ export class EmergingThreatService {
       ? [`${embeddingMatch.matchedPhrase} (${Math.round(embeddingMatch.similarity * 100)}% semantic match)`]
       : this.findSimilarScams(query);
 
-    // Calculate composite risk score (embedding match boosts the score significantly)
-    const riskScore = this.calculateRiskScore(term, ctrAnomaly, matchedPatterns, similarScams, embeddingMatch);
+    // Calculate velocity metrics
+    const velocity = this.calculateVelocity(term, days);
+
+    // Calculate composite risk score (now includes velocity)
+    const riskScore = this.calculateRiskScore(term, ctrAnomaly, matchedPatterns, similarScams, embeddingMatch, velocity);
 
     // Determine risk level
     const riskLevel = this.getRiskLevel(riskScore);
@@ -276,6 +309,7 @@ export class EmergingThreatService {
         impressionsPercent: term.change.impressionsPercent,
         ctrDelta: term.current.ctr - term.previous.ctr,
       },
+      velocity,
       isNew: term.isNew,
       firstSeen: new Date().toISOString(),
       status: 'pending',
@@ -410,18 +444,17 @@ export class EmergingThreatService {
   /**
    * Calculate composite risk score (0-100)
    *
-   * Formula (without embedding):
-   *   ctrFactor (40%) + positionFactor (25%) + volumeFactor (20%) + emergenceFactor (15%)
-   *
-   * With embedding match:
-   *   embeddingFactor (35%) + ctrFactor (25%) + positionFactor (15%) + volumeFactor (15%) + emergenceFactor (10%)
+   * Formula includes velocity factor (5-8% weight):
+   * - Without embedding: CTR (35%) + Position (22%) + Volume (18%) + Emergence (13%) + Velocity (12%)
+   * - With embedding: Embedding (30%) + CTR (22%) + Position (13%) + Volume (13%) + Emergence (10%) + Velocity (12%)
    */
   calculateRiskScore(
     term: TermComparison,
     ctrAnomaly: CTRAnomaly,
     matchedPatterns: string[],
     similarScams: string[],
-    embeddingMatch?: { similarity: number; matchedPhrase: string; category: string; severity: string }
+    embeddingMatch?: { similarity: number; matchedPhrase: string; category: string; severity: string },
+    velocity?: VelocityMetrics
   ): number {
     // 1. CTR Factor - Low CTR at good position = users clicking elsewhere (scam sites)
     let ctrFactor = ctrAnomaly.anomalyScore;
@@ -468,11 +501,14 @@ export class EmergingThreatService {
       }
     }
 
+    // 5. Velocity Factor - Fast-growing terms are more suspicious
+    const velocityFactor = velocity?.velocityScore || 0;
+
     // Calculate base score - use different weights if we have embedding match
     let score: number;
 
     if (embeddingMatch) {
-      // 5. Embedding Factor - Semantic similarity to known scam phrases (STRONGEST signal)
+      // 6. Embedding Factor - Semantic similarity to known scam phrases (STRONGEST signal)
       const embeddingFactor = embeddingMatch.similarity;
 
       // Severity boost based on matched category
@@ -483,21 +519,23 @@ export class EmergingThreatService {
         severityMultiplier = 1.15;
       }
 
-      // With embedding: give semantic match the highest weight
+      // With embedding: give semantic match the highest weight, include velocity
       score = (
-        (embeddingFactor * 0.35 * severityMultiplier) +
-        (ctrFactor * 0.25) +
-        (positionFactor * 0.15) +
-        (volumeFactor * 0.15) +
-        (emergenceFactor * 0.10)
+        (embeddingFactor * 0.30 * severityMultiplier) +
+        (ctrFactor * 0.22) +
+        (positionFactor * 0.13) +
+        (volumeFactor * 0.13) +
+        (emergenceFactor * 0.10) +
+        (velocityFactor * 0.12)
       ) * 100;
     } else {
-      // Without embedding: use original weights
+      // Without embedding: include velocity in score
       score = (
-        (ctrFactor * 0.40) +
-        (positionFactor * 0.25) +
-        (volumeFactor * 0.20) +
-        (emergenceFactor * 0.15)
+        (ctrFactor * 0.35) +
+        (positionFactor * 0.22) +
+        (volumeFactor * 0.18) +
+        (emergenceFactor * 0.13) +
+        (velocityFactor * 0.12)
       ) * 100;
     }
 
@@ -524,5 +562,65 @@ export class EmergingThreatService {
     if (score >= 51) return 'high';
     if (score >= 31) return 'medium';
     return 'low';
+  }
+
+  /**
+   * Enrich high-risk threats with Google Trends data
+   * Only checks top threats to avoid rate limiting
+   */
+  private async enrichWithTrendsData(threats: EmergingThreat[]): Promise<EmergingThreat[]> {
+    // Only check trends for high-risk items (top 30) to avoid rate limits
+    const highRiskThreats = threats.filter(t => t.riskScore >= 50).slice(0, 30);
+
+    if (highRiskThreats.length === 0) {
+      return threats;
+    }
+
+    this.logger.log(`Enriching ${highRiskThreats.length} high-risk threats with Google Trends data`);
+
+    for (const threat of highRiskThreats) {
+      try {
+        const interest = await this.trendsService.getInterestOverTime(
+          threat.query,
+          'now 7-d'  // Short timeframe for emerging threats
+        );
+
+        if (interest && interest.data.length > 0) {
+          const recent = interest.data.slice(-3);
+          const older = interest.data.slice(0, 3);
+          const recentAvg = recent.reduce((s, p) => s + p.value, 0) / recent.length;
+          const olderAvg = older.length > 0
+            ? older.reduce((s, p) => s + p.value, 0) / older.length
+            : recentAvg;
+          const changePercent = olderAvg > 0 ? ((recentAvg - olderAvg) / olderAvg) * 100 : 0;
+
+          const trendsData: TrendsData = {
+            interest: Math.round(recentAvg),
+            trend: changePercent > 10 ? 'up' : changePercent < -10 ? 'down' : 'stable',
+            changePercent: Math.round(changePercent),
+            isTrending: recentAvg > 50 && changePercent > 10,
+          };
+
+          threat.trendsData = trendsData;
+
+          // Boost risk score if trending (max +10)
+          if (trendsData.isTrending) {
+            threat.riskScore = Math.min(100, threat.riskScore + 10);
+            threat.riskLevel = this.getRiskLevel(threat.riskScore);
+          }
+        }
+      } catch (error) {
+        this.logger.debug(`Trends lookup failed for "${threat.query}": ${error.message}`);
+      }
+
+      // Rate limiting - small delay between requests
+      await this.delay(150);
+    }
+
+    return threats;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

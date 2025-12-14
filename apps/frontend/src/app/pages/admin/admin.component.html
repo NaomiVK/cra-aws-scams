@@ -53,9 +53,13 @@
                   <thead class="table-light">
                     <tr>
                       <th ngbTooltip="Search query from Google Search Console">Query</th>
-                      <th ngbTooltip="Composite risk score (0-100) based on CTR anomaly, position, volume, and pattern matches">Risk</th>
+                      <th ngbTooltip="Composite risk score (0-100) based on CTR anomaly, position, volume, velocity, and pattern matches">Risk</th>
                       <th ngbTooltip="Click-through rate compared to expected CTR for this position. Low CTR at good position = users clicking scam sites instead">CTR Anomaly</th>
-                      <th ngbTooltip="Number of times users saw CRA pages for this query">Impressions</th>
+                      <th ngbTooltip="Average ranking position in search results">Pos</th>
+                      <th ngbTooltip="Number of times users saw CRA pages for this query">Impr</th>
+                      <th ngbTooltip="Number of clicks from this query to CRA pages">Clicks</th>
+                      <th ngbTooltip="Impressions growth rate per day. Fast growth = emerging threat">Velocity</th>
+                      <th ngbTooltip="Google Trends interest score (0-100). Trending = high public interest">Trends</th>
                       <th ngbTooltip="Matched scam patterns: regex patterns (gray) and semantic matches (yellow)">Patterns</th>
                       <th>Actions</th>
                     </tr>
@@ -90,9 +94,49 @@
                           }
                         </td>
                         <td>
+                          <span>{{ threat.current.position | number:'1.1-1' }}</span>
+                        </td>
+                        <td>
                           <span ngbTooltip="Current period impressions">{{ threat.current.impressions | number }}</span>
                           @if (threat.change.impressionsPercent > 0) {
                             <small class="text-success d-block" ngbTooltip="Increase from previous period">+{{ threat.change.impressionsPercent.toFixed(0) }}%</small>
+                          }
+                        </td>
+                        <td>
+                          <span>{{ threat.current.clicks | number }}</span>
+                        </td>
+                        <td>
+                          @if (threat.velocity) {
+                            <div class="d-flex align-items-center gap-1">
+                              <span>{{ threat.velocity.impressionsPerDay | number }}</span>
+                              @if (threat.velocity.trend === 'accelerating') {
+                                <i class="bi bi-arrow-up-circle-fill text-danger" ngbTooltip="Rapidly accelerating - {{ threat.velocity.impressionsPerDay }}/day"></i>
+                              } @else if (threat.velocity.trend === 'steady') {
+                                <i class="bi bi-dash-circle text-warning" ngbTooltip="Steady growth"></i>
+                              } @else {
+                                <i class="bi bi-arrow-down-circle text-success" ngbTooltip="Slowing down"></i>
+                              }
+                            </div>
+                          } @else {
+                            <span class="text-muted">—</span>
+                          }
+                        </td>
+                        <td>
+                          @if (threat.trendsData) {
+                            <div class="d-flex align-items-center gap-1">
+                              <span class="badge" [class]="threat.trendsData.isTrending ? 'bg-danger' : 'bg-secondary'">
+                                {{ threat.trendsData.interest }}
+                              </span>
+                              @if (threat.trendsData.trend === 'up') {
+                                <i class="bi bi-graph-up text-danger" ngbTooltip="Trending up {{ threat.trendsData.changePercent }}%"></i>
+                              } @else if (threat.trendsData.trend === 'down') {
+                                <i class="bi bi-graph-down text-success" ngbTooltip="Trending down {{ threat.trendsData.changePercent }}%"></i>
+                              } @else {
+                                <i class="bi bi-dash text-muted" ngbTooltip="Stable"></i>
+                              }
+                            </div>
+                          } @else {
+                            <span class="text-muted">—</span>
                           }
                         </td>
                         <td>
@@ -257,8 +301,9 @@
 
             <h6 class="mt-4">Risk Score Formula</h6>
             <ul>
-              <li><strong>With semantic match:</strong> Embedding (35%) + CTR (25%) + Position (15%) + Volume (15%) + Emergence (10%)</li>
-              <li><strong>Without match:</strong> CTR (40%) + Position (25%) + Volume (20%) + Emergence (15%)</li>
+              <li><strong>With semantic match:</strong> Embedding (30%) + CTR (22%) + Position (13%) + Volume (13%) + Emergence (10%) + Velocity (12%)</li>
+              <li><strong>Without match:</strong> CTR (35%) + Position (22%) + Volume (18%) + Emergence (13%) + Velocity (12%)</li>
+              <li><strong>Trending boost:</strong> +10 points if term is trending on Google Trends</li>
             </ul>
 
             <h6 class="mt-4">Detection Categories</h6>

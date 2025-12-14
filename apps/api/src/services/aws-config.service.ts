@@ -1,14 +1,21 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { environment } from '../environments/environment';
 
 @Injectable()
 export class AwsConfigService implements OnModuleInit {
   private readonly logger = new Logger(AwsConfigService.name);
   private ssmClient: SSMClient | null = null;
+  private dynamoDbClient: DynamoDBClient | null = null;
+  private dynamoDbDocClient: DynamoDBDocumentClient | null = null;
 
   // Cached secrets
   private secrets: Record<string, string> = {};
+
+  // AWS region
+  private readonly region = process.env['AWS_REGION'] || 'us-east-2';
 
   // Promise that resolves when secrets are loaded
   private readyResolve!: () => void;
@@ -17,12 +24,29 @@ export class AwsConfigService implements OnModuleInit {
   });
 
   async onModuleInit() {
+    // Initialize DynamoDB client (works in both dev and prod)
+    this.initializeDynamoDb();
+
     if (environment.production) {
       await this.loadSecretsFromParameterStore();
     } else {
       this.loadSecretsFromEnv();
     }
     this.readyResolve(); // Signal that loading is complete
+  }
+
+  private initializeDynamoDb(): void {
+    try {
+      this.dynamoDbClient = new DynamoDBClient({ region: this.region });
+      this.dynamoDbDocClient = DynamoDBDocumentClient.from(this.dynamoDbClient, {
+        marshallOptions: {
+          removeUndefinedValues: true,
+        },
+      });
+      this.logger.log(`DynamoDB client initialized for region: ${this.region}`);
+    } catch (error) {
+      this.logger.error('Failed to initialize DynamoDB client:', error);
+    }
   }
 
   private loadSecretsFromEnv() {
@@ -37,7 +61,7 @@ export class AwsConfigService implements OnModuleInit {
     this.logger.log('Loading secrets from AWS Parameter Store');
 
     try {
-      this.ssmClient = new SSMClient({ region: process.env['AWS_REGION'] || 'us-east-2' });
+      this.ssmClient = new SSMClient({ region: this.region });
 
       const parameterNames = [
         '/cra-scam/GOOGLE_MAPS_API_KEY',
@@ -83,5 +107,13 @@ export class AwsConfigService implements OnModuleInit {
 
   getGscServiceAccount(): string {
     return this.getSecret('GSC_SERVICE_ACCOUNT');
+  }
+
+  getDynamoDbClient(): DynamoDBDocumentClient | null {
+    return this.dynamoDbDocClient;
+  }
+
+  getRegion(): string {
+    return this.region;
   }
 }

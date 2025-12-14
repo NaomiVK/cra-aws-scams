@@ -12,6 +12,7 @@ import {
   EmergingThreatService,
   EmbeddingService,
   AwsConfigService,
+  DynamoDbService,
 } from '../services';
 
 // Controllers
@@ -38,6 +39,7 @@ import {
   providers: [
     AppService,
     AwsConfigService,
+    DynamoDbService,
     CacheService,
     SearchConsoleService,
     ScamDetectionService,

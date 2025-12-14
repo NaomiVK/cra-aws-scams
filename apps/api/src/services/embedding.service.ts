@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import OpenAI from 'openai';
 import { CacheService } from './cache.service';
 import { AwsConfigService } from './aws-config.service';
+import { DynamoDbService } from './dynamodb.service';
 import * as seedPhrasesConfig from '../config/seed-phrases.json';
 
 type SeedPhraseCategory = {
@@ -43,6 +44,7 @@ export class EmbeddingService implements OnModuleInit {
   constructor(
     private readonly cacheService: CacheService,
     private readonly awsConfigService: AwsConfigService,
+    private readonly dynamoDbService: DynamoDbService,
   ) {
     this.similarityThreshold = seedPhrasesConfig.settings.similarityThreshold;
     this.model = seedPhrasesConfig.settings.model;
@@ -61,11 +63,46 @@ export class EmbeddingService implements OnModuleInit {
 
     this.openai = new OpenAI({ apiKey });
 
-    // Load seed phrases from config
+    // Load seed phrases from local config file
     this.loadSeedPhrases();
+
+    // Load additional seed phrases from DynamoDB (cloud persistence)
+    await this.loadSeedPhrasesFromDynamoDB();
 
     // Pre-compute embeddings for seed phrases
     await this.initializeSeedEmbeddings();
+  }
+
+  /**
+   * Load seed phrases from DynamoDB and merge with local config
+   */
+  private async loadSeedPhrasesFromDynamoDB(): Promise<void> {
+    try {
+      const dynamoPhrases = await this.dynamoDbService.getAllSeedPhrases();
+
+      if (dynamoPhrases.length === 0) {
+        this.logger.log('No additional seed phrases in DynamoDB');
+        return;
+      }
+
+      // Add DynamoDB phrases that don't already exist in local config
+      let addedCount = 0;
+      for (const record of dynamoPhrases) {
+        const exists = this.seedPhrases.some(p => p.text === record.term);
+        if (!exists) {
+          this.seedPhrases.push({
+            text: record.term,
+            category: record.category,
+            severity: record.severity,
+          });
+          addedCount++;
+        }
+      }
+
+      this.logger.log(`Loaded ${addedCount} additional seed phrases from DynamoDB`);
+    } catch (error) {
+      this.logger.warn(`Failed to load seed phrases from DynamoDB: ${error.message}`);
+    }
   }
 
   private loadSeedPhrases(): void {
@@ -273,5 +310,36 @@ export class EmbeddingService implements OnModuleInit {
       model: this.model,
       threshold: this.similarityThreshold,
     };
+  }
+
+  /**
+   * Add a new seed phrase to the embedding comparison set
+   * Persists to DynamoDB and recomputes embeddings
+   */
+  async addSeedPhrase(term: string, category: string, severity: string): Promise<void> {
+    const normalizedTerm = term.toLowerCase().trim();
+
+    // Check if already exists
+    if (this.seedPhrases.some(p => p.text === normalizedTerm)) {
+      this.logger.warn(`Seed phrase "${normalizedTerm}" already exists`);
+      return;
+    }
+
+    // Add to runtime array
+    this.seedPhrases.push({
+      text: normalizedTerm,
+      category,
+      severity,
+    });
+
+    // Persist to DynamoDB
+    await this.dynamoDbService.addSeedPhrase(normalizedTerm, category, severity);
+
+    // Invalidate embedding cache
+    this.cacheService.del('seed-embeddings-v1');
+    this.initialized = false;
+
+    // Recompute embeddings
+    await this.initializeSeedEmbeddings();
   }
 }
