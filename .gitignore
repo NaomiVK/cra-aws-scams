@@ -65,6 +65,7 @@ terraform/.terraform.lock.hcl
 terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/terraform.tfvars
+terraform/terraform.tfvars.example
 terraform/*.auto.tfvars
 terraform/crash.log
 terraform/override.tf
