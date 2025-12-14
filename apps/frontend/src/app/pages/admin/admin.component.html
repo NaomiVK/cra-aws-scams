@@ -88,7 +88,6 @@
                       <th ngbTooltip="Number of times users saw CRA pages for this query">Impr</th>
                       <th ngbTooltip="Number of clicks from this query to CRA pages">Clicks</th>
                       <th ngbTooltip="Impressions growth rate per day. Fast growth = emerging threat">Velocity</th>
-                      <th ngbTooltip="Google Trends interest score (0-100). Trending = high public interest">Trends</th>
                       <th ngbTooltip="Matched scam patterns: regex patterns (gray) and semantic matches (yellow)">Patterns</th>
                       <th>Actions</th>
                     </tr>
@@ -149,24 +148,6 @@
                                 <i class="bi bi-dash-circle text-warning" ngbTooltip="Steady growth"></i>
                               } @else {
                                 <i class="bi bi-arrow-down-circle text-success" ngbTooltip="Slowing down"></i>
-                              }
-                            </div>
-                          } @else {
-                            <span class="text-muted">—</span>
-                          }
-                        </td>
-                        <td>
-                          @if (threat.trendsData) {
-                            <div class="d-flex align-items-center gap-1">
-                              <span class="badge" [class]="threat.trendsData.isTrending ? 'bg-danger' : 'bg-secondary'">
-                                {{ threat.trendsData.interest }}
-                              </span>
-                              @if (threat.trendsData.trend === 'up') {
-                                <i class="bi bi-graph-up text-danger" ngbTooltip="Trending up {{ threat.trendsData.changePercent }}%"></i>
-                              } @else if (threat.trendsData.trend === 'down') {
-                                <i class="bi bi-graph-down text-success" ngbTooltip="Trending down {{ threat.trendsData.changePercent }}%"></i>
-                              } @else {
-                                <i class="bi bi-dash text-muted" ngbTooltip="Stable"></i>
                               }
                             </div>
                           } @else {
