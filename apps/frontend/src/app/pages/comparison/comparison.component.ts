@@ -50,6 +50,10 @@ export class ComparisonComponent implements OnInit {
   sortDirection = signal<SortDirection>('desc');
   minChangeFilter = signal<number>(0);
 
+  // New/Dropped terms filtering
+  minNewTermImpressions = signal<number>(0);
+  minDroppedTermImpressions = signal<number>(0);
+
   // Computed filtered and sorted terms
   filteredTrendingTerms = computed(() => {
     const data = this.comparisonData();
@@ -214,13 +218,19 @@ export class ComparisonComponent implements OnInit {
   getNewTerms(): TermComparison[] {
     const data = this.comparisonData();
     if (!data) return [];
-    return data.terms.filter(t => t.isNew);
+    const minImpressions = this.minNewTermImpressions();
+    return data.terms
+      .filter(t => t.isNew && t.current.impressions >= minImpressions)
+      .sort((a, b) => b.current.impressions - a.current.impressions);
   }
 
   getRemovedTerms(): TermComparison[] {
     const data = this.comparisonData();
     if (!data) return [];
-    return data.terms.filter(t => t.isGone);
+    const minImpressions = this.minDroppedTermImpressions();
+    return data.terms
+      .filter(t => t.isGone && t.previous.impressions >= minImpressions)
+      .sort((a, b) => b.previous.impressions - a.previous.impressions);
   }
 
   getSelectedPresetLabel(): string {

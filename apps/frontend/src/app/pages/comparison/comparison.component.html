@@ -4,6 +4,19 @@
       <h1 class="h3 mb-0">Period Comparison</h1>
       <p class="text-muted">Compare search term metrics between time periods</p>
     </div>
+    @if (comparisonData()) {
+      <div class="col-auto d-flex align-items-center gap-2">
+        <span class="badge bg-primary fs-6">
+          <i class="bi bi-calendar3 me-1"></i>
+          {{ comparisonData()!.currentPeriod.startDate }} to {{ comparisonData()!.currentPeriod.endDate }}
+        </span>
+        <span class="text-muted">vs</span>
+        <span class="badge bg-secondary fs-6">
+          <i class="bi bi-calendar3 me-1"></i>
+          {{ comparisonData()!.previousPeriod.startDate }} to {{ comparisonData()!.previousPeriod.endDate }}
+        </span>
+      </div>
+    }
   </div>
 
   <!-- Comparison Controls -->
@@ -114,16 +127,6 @@
 
   <!-- Comparison Content -->
   @if (!loading() && !error() && comparisonData()) {
-    <!-- Period Info Badge -->
-    <div class="mb-3">
-      <span class="badge bg-primary me-2">{{ getSelectedPresetLabel() }}</span>
-      <span class="text-muted small">
-        Current: {{ comparisonData()!.currentPeriod.startDate }} to {{ comparisonData()!.currentPeriod.endDate }}
-        &nbsp;|&nbsp;
-        Previous: {{ comparisonData()!.previousPeriod.startDate }} to {{ comparisonData()!.previousPeriod.endDate }}
-      </span>
-    </div>
-
     <!-- Summary Cards -->
     <div class="row mb-4">
       <div class="col-md-4">
@@ -171,11 +174,18 @@
     <div class="row mb-4">
       <div class="col-md-6">
         <div class="card h-100">
-          <div class="card-header bg-success text-white">
+          <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
               <i class="bi bi-plus-circle me-2"></i>
-              New Terms This Period ({{ comparisonData()!.summary.newTerms }})
+              New Terms ({{ getNewTerms().length }})
             </h5>
+            <div class="d-flex align-items-center gap-2">
+              <label class="small mb-0">Min:</label>
+              <input type="number" class="form-control form-control-sm" style="width: 80px;"
+                placeholder="0" min="0"
+                [ngModel]="minNewTermImpressions()"
+                (ngModelChange)="minNewTermImpressions.set($event)" />
+            </div>
           </div>
           <div class="card-body scrollable" style="max-height: 300px; overflow-y: auto;">
             @for (term of getNewTerms(); track term.query) {
@@ -194,11 +204,18 @@
 
       <div class="col-md-6">
         <div class="card h-100">
-          <div class="card-header bg-secondary text-white">
+          <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
               <i class="bi bi-dash-circle me-2"></i>
-              Dropped Off ({{ comparisonData()!.summary.goneTerms }})
+              Dropped Off ({{ getRemovedTerms().length }})
             </h5>
+            <div class="d-flex align-items-center gap-2">
+              <label class="small mb-0">Min:</label>
+              <input type="number" class="form-control form-control-sm" style="width: 80px;"
+                placeholder="0" min="0"
+                [ngModel]="minDroppedTermImpressions()"
+                (ngModelChange)="minDroppedTermImpressions.set($event)" />
+            </div>
           </div>
           <div class="card-body scrollable" style="max-height: 300px; overflow-y: auto;">
             @for (term of getRemovedTerms(); track term.query) {
