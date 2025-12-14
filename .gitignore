@@ -57,7 +57,7 @@ service-account-credentials.json
 **/environments/environment.prod.local.ts
 
 # Project-specific
-*.md
+# *.md (removed - now tracking markdown files)
 
 # Terraform
 terraform/.terraform/
