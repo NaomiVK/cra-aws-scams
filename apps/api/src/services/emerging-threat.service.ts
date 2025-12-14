@@ -32,10 +32,8 @@ import * as stringSimilarity from 'string-similarity';
  */
 const DYNAMIC_PATTERNS = {
   dollarAmount: /\$\s*\d+(?:,\d{3})*(?:\.\d{2})?|\d+\s*(?:dollars?|bucks)/i,
-  yearReference: /\b20(2[4-9]|[3-9]\d)\b/,  // Years 2024-2099
   urgencyWords: /\b(urgent|immediate|immediately|act now|claim now|apply now|hurry|limited time|expires|last chance|final notice)\b/i,
   freeMoneyPattern: /\b(free|bonus|extra|secret|hidden|unclaimed)\s+(money|cash|payment|benefit|refund|cheque|check)\b/i,
-  craContext: /\b(cra|canada revenue|revenue agency|tax)\b/i,
 };
 
 @Injectable()
@@ -154,14 +152,37 @@ export class EmergingThreatService {
 
         // STEP 3: Analyze all candidate terms for emerging threats
         const allThreats: EmergingThreat[] = [];
+        let filteredByWhitelist = 0;
+        let filteredByKeyword = 0;
+        let filteredByWhitelistPattern = 0;
 
         for (const term of candidateTerms) {
-          const embeddingMatch = embeddingResults.get(term.query.toLowerCase());
+          const query = term.query.toLowerCase();
+
+          // Track filter reasons for logging
+          if (this.scamDetectionService.isExactWhitelistMatch(query)) {
+            filteredByWhitelist++;
+            continue;
+          }
+          if (this.scamDetectionService.isExactKeywordMatch(query)) {
+            filteredByKeyword++;
+            continue;
+          }
+          if (this.scamDetectionService.isWhitelisted(query)) {
+            filteredByWhitelistPattern++;
+            continue;
+          }
+
+          const embeddingMatch = embeddingResults.get(query);
           const threat = this.analyzeTermForThreats(term, benchmarks, days, embeddingMatch);
           if (threat && threat.riskScore >= 30) {
             allThreats.push(threat);
           }
         }
+
+        this.logger.log(
+          `[EMERGING] Filtered out: ${filteredByWhitelist} exact whitelist, ${filteredByKeyword} exact keyword, ${filteredByWhitelistPattern} whitelist pattern matches`
+        );
 
         // Sort by risk score descending
         allThreats.sort((a, b) => b.riskScore - a.riskScore);
@@ -259,8 +280,21 @@ export class EmergingThreatService {
   ): EmergingThreat | null {
     const query = term.query.toLowerCase();
 
-    // Skip if whitelisted
+    // Skip if exact match exists in whitelist (already added from admin console)
+    if (this.scamDetectionService.isExactWhitelistMatch(query)) {
+      this.logger.debug(`[FILTER] Skipping "${query}" - exact whitelist match`);
+      return null;
+    }
+
+    // Skip if exact match exists in keywords (already added from admin console)
+    if (this.scamDetectionService.isExactKeywordMatch(query)) {
+      this.logger.debug(`[FILTER] Skipping "${query}" - exact keyword match`);
+      return null;
+    }
+
+    // Skip if whitelisted (partial/pattern match)
     if (this.scamDetectionService.isWhitelisted(query)) {
+      this.logger.debug(`[FILTER] Skipping "${query}" - whitelist pattern match`);
       return null;
     }
 
@@ -360,7 +394,7 @@ export class EmergingThreatService {
   }
 
   /**
-   * Check for dynamic scam patterns (dollar amounts, years, urgency)
+   * Check for dynamic scam patterns (dollar amounts, urgency, free money)
    */
   checkDynamicPatterns(query: string): string[] {
     const matched: string[] = [];
@@ -369,12 +403,6 @@ export class EmergingThreatService {
     const dollarMatch = query.match(DYNAMIC_PATTERNS.dollarAmount);
     if (dollarMatch) {
       matched.push(`DOLLAR_AMOUNT: ${dollarMatch[0]}`);
-    }
-
-    // Check for year references (future years are more suspicious)
-    const yearMatch = query.match(DYNAMIC_PATTERNS.yearReference);
-    if (yearMatch) {
-      matched.push(`YEAR: ${yearMatch[0]}`);
     }
 
     // Check for urgency words
@@ -387,12 +415,6 @@ export class EmergingThreatService {
     const freeMoneyMatch = query.match(DYNAMIC_PATTERNS.freeMoneyPattern);
     if (freeMoneyMatch) {
       matched.push(`FREE_MONEY: ${freeMoneyMatch[0]}`);
-    }
-
-    // Check for CRA context (needed for some patterns to be suspicious)
-    const hasCraContext = DYNAMIC_PATTERNS.craContext.test(query);
-    if (hasCraContext && matched.length > 0) {
-      matched.unshift('CRA_CONTEXT');
     }
 
     return matched;

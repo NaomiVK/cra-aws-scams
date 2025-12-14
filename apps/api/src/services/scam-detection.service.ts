@@ -42,35 +42,72 @@ export class ScamDetectionService implements OnModuleInit {
    */
   private async loadFromDynamoDB(): Promise<void> {
     try {
+      // Log initial state from JSON
+      this.logger.log(`[STARTUP] Initial keyword counts from JSON config:`);
+      for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
+        this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
+      }
+      this.logger.log(`  - whitelist: ${this.keywordsConfig.whitelist.patterns.length} patterns`);
+
       // Load keywords from DynamoDB
       const dbKeywords = await this.dynamoDbService.getAllKeywords();
+      this.logger.log(`[STARTUP] Found ${dbKeywords.length} keyword records in DynamoDB`);
+
       let keywordsAdded = 0;
+      const addedByCategory: Record<string, string[]> = {};
+
       for (const record of dbKeywords) {
         const categoryName = record.category.replace('keyword:', '');
         const category = this.keywordsConfig.categories[categoryName as keyof ScamKeywordsConfig['categories']];
         if (category && !category.terms.includes(record.term)) {
           category.terms.push(record.term);
           keywordsAdded++;
+          if (!addedByCategory[categoryName]) {
+            addedByCategory[categoryName] = [];
+          }
+          addedByCategory[categoryName].push(record.term);
         }
       }
+
       if (keywordsAdded > 0) {
-        this.logger.log(`Loaded ${keywordsAdded} keywords from DynamoDB`);
+        this.logger.log(`[STARTUP] Merged ${keywordsAdded} keywords from DynamoDB:`);
+        for (const [catName, terms] of Object.entries(addedByCategory)) {
+          this.logger.log(`  - ${catName}: +${terms.length} terms (${terms.slice(0, 5).join(', ')}${terms.length > 5 ? '...' : ''})`);
+        }
+      } else {
+        this.logger.log(`[STARTUP] No new keywords to merge from DynamoDB`);
       }
 
       // Load whitelist from DynamoDB
       const dbWhitelist = await this.dynamoDbService.getAllWhitelist();
+      this.logger.log(`[STARTUP] Found ${dbWhitelist.length} whitelist records in DynamoDB`);
+
       let whitelistAdded = 0;
+      const addedWhitelist: string[] = [];
+
       for (const record of dbWhitelist) {
         if (!this.keywordsConfig.whitelist.patterns.includes(record.term)) {
           this.keywordsConfig.whitelist.patterns.push(record.term);
           whitelistAdded++;
+          addedWhitelist.push(record.term);
         }
       }
+
       if (whitelistAdded > 0) {
-        this.logger.log(`Loaded ${whitelistAdded} whitelist patterns from DynamoDB`);
+        this.logger.log(`[STARTUP] Merged ${whitelistAdded} whitelist patterns from DynamoDB: ${addedWhitelist.slice(0, 5).join(', ')}${addedWhitelist.length > 5 ? '...' : ''}`);
+      } else {
+        this.logger.log(`[STARTUP] No new whitelist patterns to merge from DynamoDB`);
       }
+
+      // Log final state
+      this.logger.log(`[STARTUP] Final keyword counts after DynamoDB merge:`);
+      for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
+        this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
+      }
+      this.logger.log(`  - whitelist: ${this.keywordsConfig.whitelist.patterns.length} patterns`);
+
     } catch (error) {
-      this.logger.warn(`Failed to load from DynamoDB: ${error.message}`);
+      this.logger.warn(`[STARTUP] Failed to load from DynamoDB: ${error.message}`);
     }
   }
 
@@ -84,8 +121,15 @@ export class ScamDetectionService implements OnModuleInit {
       cacheKey,
       async () => {
         this.logger.log(
-          `Running scam detection for ${dateRange.startDate} to ${dateRange.endDate}`
+          `[DETECT] Running scam detection for ${dateRange.startDate} to ${dateRange.endDate}`
         );
+
+        // Log current keyword counts being used for detection
+        this.logger.log(`[DETECT] Current keyword counts in memory:`);
+        for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
+          this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
+        }
+        this.logger.log(`  - whitelist: ${this.keywordsConfig.whitelist.patterns.length} patterns`);
 
         // Get search analytics data
         const analyticsData =
@@ -244,6 +288,35 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   /**
+   * Check if query exactly matches a whitelisted term
+   * Used for filtering emerging threats that have been explicitly whitelisted
+   */
+  isExactWhitelistMatch(query: string): boolean {
+    const normalizedQuery = query.toLowerCase().trim();
+    return this.keywordsConfig.whitelist.patterns.some(
+      (pattern) => pattern.toLowerCase().trim() === normalizedQuery
+    );
+  }
+
+  /**
+   * Check if query exactly matches an existing keyword in any category
+   * Used for filtering emerging threats that have already been added as keywords
+   * (Config is synced with DynamoDB on startup and on every add)
+   */
+  isExactKeywordMatch(query: string): boolean {
+    const normalizedQuery = query.toLowerCase().trim();
+    const categories = this.keywordsConfig.categories;
+
+    for (const categoryKey of Object.keys(categories)) {
+      const category = categories[categoryKey as keyof typeof categories];
+      if (category.terms.some((term) => term.toLowerCase().trim() === normalizedQuery)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Check for fake/expired benefit terms
    */
   private checkFakeExpiredBenefits(
@@ -388,32 +461,61 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   async addKeyword(term: string, category: keyof ScamKeywordsConfig['categories']): Promise<void> {
+    this.logger.log(`[ADD_KEYWORD] Request to add "${term}" to category "${category}"`);
+
     if (this.keywordsConfig.categories[category]) {
       const terms = this.keywordsConfig.categories[category].terms;
-      if (!terms.includes(term.toLowerCase())) {
-        terms.push(term.toLowerCase());
-        this.logger.log(`Added "${term}" to ${category}`);
+      const termLower = term.toLowerCase();
+
+      if (!terms.includes(termLower)) {
+        const countBefore = terms.length;
+        terms.push(termLower);
+        this.logger.log(`[ADD_KEYWORD] Added "${termLower}" to in-memory config (${category}: ${countBefore} → ${terms.length} terms)`);
+
+        this.logger.log(`[ADD_KEYWORD] Flushing cache...`);
         this.cacheService.flush();
 
         // Persist to DynamoDB
-        await this.dynamoDbService.addKeyword(term, category);
+        this.logger.log(`[ADD_KEYWORD] Persisting to DynamoDB...`);
+        const dbSuccess = await this.dynamoDbService.addKeyword(term, category);
+        this.logger.log(`[ADD_KEYWORD] DynamoDB persist: ${dbSuccess ? 'SUCCESS' : 'FAILED'}`);
 
         // Also add to embedding service for semantic matching
         const severity = this.keywordsConfig.categories[category].severity;
+        this.logger.log(`[ADD_KEYWORD] Adding to embedding service...`);
         await this.embeddingService.addSeedPhrase(term, category, severity);
+
+        this.logger.log(`[ADD_KEYWORD] Complete. "${termLower}" is now active in ${category}`);
+      } else {
+        this.logger.log(`[ADD_KEYWORD] Term "${termLower}" already exists in ${category}, skipping`);
       }
+    } else {
+      this.logger.warn(`[ADD_KEYWORD] Category "${category}" not found in config`);
     }
   }
 
   async addWhitelistPattern(pattern: string): Promise<void> {
+    this.logger.log(`[ADD_WHITELIST] Request to add "${pattern}" to whitelist`);
+
     const patterns = this.keywordsConfig.whitelist.patterns;
-    if (!patterns.includes(pattern.toLowerCase())) {
-      patterns.push(pattern.toLowerCase());
-      this.logger.log(`Added "${pattern}" to whitelist`);
+    const patternLower = pattern.toLowerCase();
+
+    if (!patterns.includes(patternLower)) {
+      const countBefore = patterns.length;
+      patterns.push(patternLower);
+      this.logger.log(`[ADD_WHITELIST] Added "${patternLower}" to in-memory config (whitelist: ${countBefore} → ${patterns.length} patterns)`);
+
+      this.logger.log(`[ADD_WHITELIST] Flushing cache...`);
       this.cacheService.flush();
 
       // Persist to DynamoDB
-      await this.dynamoDbService.addWhitelist(pattern);
+      this.logger.log(`[ADD_WHITELIST] Persisting to DynamoDB...`);
+      const dbSuccess = await this.dynamoDbService.addWhitelist(pattern);
+      this.logger.log(`[ADD_WHITELIST] DynamoDB persist: ${dbSuccess ? 'SUCCESS' : 'FAILED'}`);
+
+      this.logger.log(`[ADD_WHITELIST] Complete. "${patternLower}" is now active in whitelist`);
+    } else {
+      this.logger.log(`[ADD_WHITELIST] Pattern "${patternLower}" already exists in whitelist, skipping`);
     }
   }
 }
