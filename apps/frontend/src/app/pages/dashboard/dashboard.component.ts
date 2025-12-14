@@ -64,6 +64,9 @@ export class DashboardComponent implements OnInit {
   page = signal(1);
   pageSize = signal(20);
 
+  // Track selected date range for button highlighting
+  selectedDays = signal(7);
+
   // Computed filtered and sorted terms
   filteredTerms = computed(() => {
     const data = this.dashboardData();
@@ -181,6 +184,7 @@ export class DashboardComponent implements OnInit {
       startDate: this.formatDate(startDate),
       endDate: this.formatDate(endDate),
     });
+    this.selectedDays.set(days);
     this.page.set(1);
     this.loadDashboard();
   }
@@ -252,7 +256,7 @@ export class DashboardComponent implements OnInit {
 
   private getDefaultStartDate(): string {
     const date = new Date();
-    date.setDate(date.getDate() - 28);
+    date.setDate(date.getDate() - 7);
     return this.formatDate(date);
   }
 
