@@ -48,10 +48,39 @@
             @if (data.threats.length === 0) {
               <div class="alert alert-success">No emerging threats detected.</div>
             } @else {
+              <!-- Bulk Actions Bar -->
+              @if (getSelectedCount() > 0) {
+                <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
+                  <span>
+                    <strong>{{ getSelectedCount() }}</strong> item(s) selected
+                  </span>
+                  <div class="btn-group">
+                    <button class="btn btn-danger btn-sm" (click)="bulkAddToKeywords()"
+                            ngbTooltip="Add selected items to scam keywords">
+                      <i class="bi bi-plus-circle me-1"></i> Add to Keywords
+                    </button>
+                    <button class="btn btn-success btn-sm" (click)="bulkAddToWhitelist()"
+                            ngbTooltip="Whitelist selected items">
+                      <i class="bi bi-check-circle me-1"></i> Whitelist
+                    </button>
+                    <button class="btn btn-secondary btn-sm" (click)="bulkDismiss()"
+                            ngbTooltip="Dismiss selected items">
+                      <i class="bi bi-x-circle me-1"></i> Dismiss
+                    </button>
+                  </div>
+                </div>
+              }
+
               <div class="table-responsive">
                 <table class="table table-hover">
                   <thead class="table-light">
                     <tr>
+                      <th style="width: 40px;">
+                        <input type="checkbox" class="form-check-input"
+                               [checked]="isAllSelected()"
+                               (change)="toggleSelectAll()"
+                               ngbTooltip="Select all on this page">
+                      </th>
                       <th ngbTooltip="Search query from Google Search Console">Query</th>
                       <th ngbTooltip="Composite risk score (0-100) based on CTR anomaly, position, volume, velocity, and pattern matches">Risk</th>
                       <th ngbTooltip="Click-through rate compared to expected CTR for this position. Low CTR at good position = users clicking scam sites instead">CTR Anomaly</th>
@@ -67,6 +96,11 @@
                   <tbody>
                     @for (threat of data.threats; track threat.id) {
                       <tr>
+                        <td>
+                          <input type="checkbox" class="form-check-input"
+                                 [checked]="isSelected(threat.id)"
+                                 (change)="toggleSelect(threat.id)">
+                        </td>
                         <td>
                           <strong>{{ threat.query }}</strong>
                           @if (threat.isNew) {
@@ -348,38 +382,46 @@
     <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
   <div class="modal-body">
-    @if (pendingThreat(); as threat) {
+    @if (bulkModalAction() === 'keyword') {
+      <p>Add <strong>{{ getSelectedCount() }} selected item(s)</strong> to which category?</p>
+    } @else if (pendingThreat(); as threat) {
       <p>Add "<strong>{{ threat.query }}</strong>" to which category?</p>
-      <div class="list-group">
-        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                [class.active]="modalCategory() === 'fakeExpiredBenefits'"
-                (click)="modalCategory.set('fakeExpiredBenefits')">
-          Fake/Expired Benefits
-          <span class="badge bg-danger">Critical</span>
-        </button>
-        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                [class.active]="modalCategory() === 'illegitimatePaymentMethods'"
-                (click)="modalCategory.set('illegitimatePaymentMethods')">
-          Illegitimate Payment Methods
-          <span class="badge bg-danger">Critical</span>
-        </button>
-        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                [class.active]="modalCategory() === 'threatLanguage'"
-                (click)="modalCategory.set('threatLanguage')">
-          Threat Language
-          <span class="badge bg-warning text-dark">High</span>
-        </button>
-        <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                [class.active]="modalCategory() === 'suspiciousModifiers'"
-                (click)="modalCategory.set('suspiciousModifiers')">
-          Suspicious Modifiers
-          <span class="badge bg-info">Medium</span>
-        </button>
-      </div>
     }
+    <div class="list-group">
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="modalCategory() === 'fakeExpiredBenefits'"
+              (click)="modalCategory.set('fakeExpiredBenefits')">
+        Fake/Expired Benefits
+        <span class="badge bg-danger">Critical</span>
+      </button>
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="modalCategory() === 'illegitimatePaymentMethods'"
+              (click)="modalCategory.set('illegitimatePaymentMethods')">
+        Illegitimate Payment Methods
+        <span class="badge bg-danger">Critical</span>
+      </button>
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="modalCategory() === 'threatLanguage'"
+              (click)="modalCategory.set('threatLanguage')">
+        Threat Language
+        <span class="badge bg-warning text-dark">High</span>
+      </button>
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="modalCategory() === 'suspiciousModifiers'"
+              (click)="modalCategory.set('suspiciousModifiers')">
+        Suspicious Modifiers
+        <span class="badge bg-info">Medium</span>
+      </button>
+    </div>
   </div>
   <div class="modal-footer">
     <button type="button" class="btn btn-secondary" (click)="modal.dismiss()">Cancel</button>
-    <button type="button" class="btn btn-primary" (click)="confirmAddKeyword()">Add Keyword</button>
+    <button type="button" class="btn btn-primary" (click)="confirmAddKeyword()">
+      @if (bulkModalAction() === 'keyword') {
+        Add {{ getSelectedCount() }} Keywords
+      } @else {
+        Add Keyword
+      }
+    </button>
   </div>
 </ng-template>

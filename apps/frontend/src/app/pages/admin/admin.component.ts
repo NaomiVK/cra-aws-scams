@@ -44,6 +44,10 @@ export class AdminComponent implements OnInit {
   pendingThreat = signal<EmergingThreat | null>(null);
   modalCategory = signal<CategoryKey>('fakeExpiredBenefits');
 
+  // Bulk selection
+  selectedThreats = signal<Set<string>>(new Set());
+  bulkModalAction = signal<'keyword' | 'whitelist' | null>(null);
+
   ngOnInit(): void {
     this.loadEmergingThreats();
     this.loadKeywordsConfig();
@@ -111,35 +115,179 @@ export class AdminComponent implements OnInit {
    * Confirm adding keyword with selected category
    */
   confirmAddKeyword(): void {
+    // Check if this is a bulk action
+    if (this.bulkModalAction() === 'keyword') {
+      this.confirmBulkAddKeyword();
+      return;
+    }
+
     const threat = this.pendingThreat();
     if (!threat) return;
+
+    // Optimistic UI - remove immediately
+    this.removeFromList(threat.id);
 
     this.api.addKeyword(threat.query, this.modalCategory()).subscribe({
       next: () => {
         this.loadKeywordsConfig();
-        this.loadEmergingThreats();
         this.modalService.dismissAll();
         this.pendingThreat.set(null);
       },
-      error: (err) => console.error('Failed to add keyword', err),
+      error: (err) => {
+        console.error('Failed to add keyword', err);
+        this.loadEmergingThreats(); // Reload on error
+      },
     });
   }
 
   addToWhitelist(threat: EmergingThreat): void {
+    // Optimistic UI - remove immediately
+    this.removeFromList(threat.id);
+
     this.api.addWhitelist(threat.query).subscribe({
       next: () => {
         this.loadKeywordsConfig();
-        this.loadEmergingThreats();
       },
-      error: (err) => console.error('Failed to add to whitelist', err),
+      error: (err) => {
+        console.error('Failed to add to whitelist', err);
+        this.loadEmergingThreats(); // Reload on error
+      },
     });
   }
 
   dismissThreat(threat: EmergingThreat): void {
+    // Optimistic UI - remove immediately
+    this.removeFromList(threat.id);
+
     this.api.dismissThreat(threat.id).subscribe({
-      next: () => this.loadEmergingThreats(),
-      error: (err) => console.error('Failed to dismiss', err),
+      error: (err) => {
+        console.error('Failed to dismiss', err);
+        this.loadEmergingThreats(); // Reload on error
+      },
     });
+  }
+
+  // Optimistic UI helper - remove threat from local list
+  private removeFromList(threatId: string): void {
+    const current = this.emergingThreats();
+    if (!current) return;
+
+    const updatedThreats = current.threats.filter(t => t.id !== threatId);
+    this.emergingThreats.set({
+      ...current,
+      threats: updatedThreats,
+      summary: {
+        ...current.summary,
+        total: current.summary.total - 1,
+      },
+    });
+
+    // Remove from selection if selected
+    const selected = new Set(this.selectedThreats());
+    selected.delete(threatId);
+    this.selectedThreats.set(selected);
+  }
+
+  // Bulk selection methods
+  toggleSelect(threatId: string): void {
+    const selected = new Set(this.selectedThreats());
+    if (selected.has(threatId)) {
+      selected.delete(threatId);
+    } else {
+      selected.add(threatId);
+    }
+    this.selectedThreats.set(selected);
+  }
+
+  isSelected(threatId: string): boolean {
+    return this.selectedThreats().has(threatId);
+  }
+
+  toggleSelectAll(): void {
+    const threats = this.emergingThreats()?.threats || [];
+    const selected = this.selectedThreats();
+
+    if (selected.size === threats.length) {
+      // Deselect all
+      this.selectedThreats.set(new Set());
+    } else {
+      // Select all
+      this.selectedThreats.set(new Set(threats.map(t => t.id)));
+    }
+  }
+
+  isAllSelected(): boolean {
+    const threats = this.emergingThreats()?.threats || [];
+    return threats.length > 0 && this.selectedThreats().size === threats.length;
+  }
+
+  getSelectedCount(): number {
+    return this.selectedThreats().size;
+  }
+
+  // Bulk actions
+  bulkAddToKeywords(): void {
+    this.bulkModalAction.set('keyword');
+    this.modalCategory.set('fakeExpiredBenefits');
+    this.modalService.open(this.categoryModal, { centered: true });
+  }
+
+  bulkAddToWhitelist(): void {
+    const selected = this.selectedThreats();
+    const threats = this.emergingThreats()?.threats || [];
+    const selectedThreats = threats.filter(t => selected.has(t.id));
+
+    // Optimistic UI - remove all selected
+    selectedThreats.forEach(t => this.removeFromList(t.id));
+
+    // Add each to whitelist
+    selectedThreats.forEach(threat => {
+      this.api.addWhitelist(threat.query).subscribe({
+        error: (err) => console.error('Failed to add to whitelist', err),
+      });
+    });
+
+    this.selectedThreats.set(new Set());
+    this.loadKeywordsConfig();
+  }
+
+  bulkDismiss(): void {
+    const selected = this.selectedThreats();
+    const threats = this.emergingThreats()?.threats || [];
+    const selectedThreats = threats.filter(t => selected.has(t.id));
+
+    // Optimistic UI - remove all selected
+    selectedThreats.forEach(t => this.removeFromList(t.id));
+
+    // Dismiss each
+    selectedThreats.forEach(threat => {
+      this.api.dismissThreat(threat.id).subscribe({
+        error: (err) => console.error('Failed to dismiss', err),
+      });
+    });
+
+    this.selectedThreats.set(new Set());
+  }
+
+  confirmBulkAddKeyword(): void {
+    const selected = this.selectedThreats();
+    const threats = this.emergingThreats()?.threats || [];
+    const selectedThreats = threats.filter(t => selected.has(t.id));
+
+    // Optimistic UI - remove all selected
+    selectedThreats.forEach(t => this.removeFromList(t.id));
+
+    // Add each as keyword
+    selectedThreats.forEach(threat => {
+      this.api.addKeyword(threat.query, this.modalCategory()).subscribe({
+        error: (err) => console.error('Failed to add keyword', err),
+      });
+    });
+
+    this.selectedThreats.set(new Set());
+    this.modalService.dismissAll();
+    this.bulkModalAction.set(null);
+    this.loadKeywordsConfig();
   }
 
   addKeyword(): void {
