@@ -18,7 +18,7 @@ export const environment = {
 
   // Search Console Query Limits
   searchConsole: {
-    maxRows: 5000, // Maximum rows per query
+    maxRows: 1000, // Maximum rows per query
     minImpressions: 100, // Minimum impressions filter
     maxDateRangeDays: 90, // Maximum date range
   },

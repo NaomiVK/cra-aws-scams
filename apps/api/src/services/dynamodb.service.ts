@@ -47,6 +47,7 @@ export class DynamoDbService implements OnModuleInit {
 
   /**
    * Get all seed phrases from DynamoDB
+   * Excludes whitelist, seen-term, and keyword categories
    */
   async getAllSeedPhrases(): Promise<SeedPhraseRecord[]> {
     if (!this.initialized) {
@@ -58,14 +59,21 @@ export class DynamoDbService implements OnModuleInit {
     if (!client) return [];
 
     try {
+      // Filter out whitelist and seen-term categories
+      // These should NOT be used for semantic matching
       const command = new ScanCommand({
         TableName: this.tableName,
+        FilterExpression: 'category <> :whitelist AND category <> :seenTerm',
+        ExpressionAttributeValues: {
+          ':whitelist': 'whitelist',
+          ':seenTerm': 'seen-term',
+        },
       });
 
       const response = await client.send(command);
       const items = (response.Items || []) as SeedPhraseRecord[];
 
-      this.logger.log(`Loaded ${items.length} seed phrases from DynamoDB`);
+      this.logger.log(`Loaded ${items.length} seed phrases from DynamoDB (excluded whitelist/seen-terms)`);
       return items;
     } catch (error) {
       // Table might not exist yet - that's OK
