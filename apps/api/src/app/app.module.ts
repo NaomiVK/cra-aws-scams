@@ -13,8 +13,6 @@ import {
   EmbeddingService,
   AwsConfigService,
   DynamoDbService,
-  CategoryCentroidService,
-  SignalConvergenceService,
 } from '../services';
 
 // Controllers
@@ -49,8 +47,6 @@ import {
     TrendsService,
     EmergingThreatService,
     EmbeddingService,
-    CategoryCentroidService,
-    SignalConvergenceService,
   ],
 })
 export class AppModule {}
