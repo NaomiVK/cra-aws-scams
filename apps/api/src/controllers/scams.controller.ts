@@ -3,11 +3,9 @@ import { ScamDetectionService } from '../services/scam-detection.service';
 import { SearchConsoleService } from '../services/search-console.service';
 import { EmergingThreatService } from '../services/emerging-threat.service';
 import { ComparisonService } from '../services/comparison.service';
-import { CategoryCentroidService } from '../services/category-centroid.service';
 import {
   DateRange,
   AddKeywordRequest,
-  AddWhitelistRequest,
   TrendingTermData,
 } from '@cra-scam-detection/shared-types';
 import { environment } from '../environments/environment';
@@ -20,8 +18,7 @@ export class ScamsController {
     private readonly scamDetectionService: ScamDetectionService,
     private readonly searchConsoleService: SearchConsoleService,
     private readonly emergingThreatService: EmergingThreatService,
-    private readonly comparisonService: ComparisonService,
-    private readonly categoryCentroidService: CategoryCentroidService
+    private readonly comparisonService: ComparisonService
   ) {}
 
   /**
@@ -220,13 +217,6 @@ export class ScamsController {
     return { success: true, message: `Added "${request.term}" to ${request.category}` };
   }
 
-  @Post('whitelist')
-  async addWhitelist(@Body() request: AddWhitelistRequest) {
-    this.logger.log(`Adding whitelist pattern: "${request.pattern}"`);
-    await this.scamDetectionService.addWhitelistPattern(request.pattern);
-    return { success: true, message: `Added "${request.pattern}" to whitelist` };
-  }
-
   @Post('emerging/:id/dismiss')
   async dismissThreat(@Param('id') id: string) {
     this.logger.log(`Dismissing threat: ${id}`);
@@ -243,43 +233,4 @@ export class ScamsController {
     return { success: true, data: benchmarks };
   }
 
-  /**
-   * GET /api/scams/excluded
-   * Get excluded/legitimate terms configuration (semantic zones)
-   * These terms are automatically excluded from emerging threats detection
-   */
-  @Get('excluded')
-  async getExcludedTerms() {
-    const status = this.categoryCentroidService.getStatus();
-    const categories = this.categoryCentroidService.getCategoryStats();
-
-    // Also get whitelist patterns from keywords config
-    const config = this.scamDetectionService.getKeywordsConfig();
-    const whitelistPatterns = config.whitelist?.patterns || [];
-
-    return {
-      success: true,
-      data: {
-        status: {
-          ready: status.ready,
-          threshold: status.threshold,
-          totalExemplars: status.totalExemplars,
-          categoryCount: status.categoryCount,
-        },
-        categories,
-        whitelistPatterns,
-      },
-    };
-  }
-
-  /**
-   * POST /api/scams/excluded
-   * Add a term to the excluded/legitimate terms list
-   */
-  @Post('excluded')
-  async addExcludedTerm(@Body() request: { term: string; category?: string }) {
-    this.logger.log(`Adding excluded term: "${request.term}" to category "${request.category || 'generalInquiry'}"`);
-    await this.categoryCentroidService.addExemplar(request.term, request.category);
-    return { success: true, message: `Added "${request.term}" to excluded terms` };
-  }
 }

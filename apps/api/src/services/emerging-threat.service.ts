@@ -1,12 +1,10 @@
-import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CacheService } from './cache.service';
 import { ComparisonService } from './comparison.service';
 import { ScamDetectionService } from './scam-detection.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
 import { TrendsService } from './trends.service';
-import { CategoryCentroidService } from './category-centroid.service';
-import { SignalConvergenceService } from './signal-convergence.service';
 import {
   EmergingThreat,
   EmergingThreatsResponse,
@@ -50,10 +48,6 @@ export class EmergingThreatService {
     private readonly searchConsoleService: SearchConsoleService,
     private readonly embeddingService: EmbeddingService,
     private readonly trendsService: TrendsService,
-    @Inject(forwardRef(() => CategoryCentroidService))
-    private readonly categoryCentroidService: CategoryCentroidService,
-    @Inject(forwardRef(() => SignalConvergenceService))
-    private readonly signalConvergenceService: SignalConvergenceService,
   ) {}
 
   /**
@@ -156,78 +150,17 @@ export class EmergingThreatService {
           }
         }
 
-        // STEP 3: Semantic zone filtering (replaces regex whitelist)
-        // Use batch semantic zone check for efficiency
-        let filteredBySemanticZone = 0;
-        let filteredByKeyword = 0;
-        const termsToAnalyze: TermComparison[] = [];
-
-        if (this.categoryCentroidService.isReady()) {
-          // Batch check semantic zones
-          const semanticResults = await this.categoryCentroidService.batchCheckLegitimateZone(
-            candidateTerms.map(t => t.query)
-          );
-
-          for (let i = 0; i < candidateTerms.length; i++) {
-            const term = candidateTerms[i];
-            const semanticZone = semanticResults[i];
-            const query = term.query.toLowerCase();
-
-            // Filter if in legitimate semantic zone with high confidence
-            if (semanticZone.isLegitimate && semanticZone.similarity >= 0.80) {
-              filteredBySemanticZone++;
-              this.logger.debug(
-                `[SEMANTIC-ZONE] Filtered "${query}" - matched "${semanticZone.nearestCategory}" ` +
-                `(similarity: ${(semanticZone.similarity * 100).toFixed(1)}%)`
-              );
-              continue;
-            }
-
-            // Also filter exact keyword matches (already added to scam keywords)
-            if (this.scamDetectionService.isExactKeywordMatch(query)) {
-              filteredByKeyword++;
-              continue;
-            }
-
-            termsToAnalyze.push(term);
-          }
-        } else {
-          // Fallback to legacy whitelist if semantic zones not ready
-          this.logger.warn('[EMERGING] Semantic zones not ready, falling back to legacy whitelist');
-          for (const term of candidateTerms) {
-            const query = term.query.toLowerCase();
-
-            if (this.scamDetectionService.isExactWhitelistMatch(query) ||
-                this.scamDetectionService.isWhitelisted(query)) {
-              filteredBySemanticZone++;
-              continue;
-            }
-
-            if (this.scamDetectionService.isExactKeywordMatch(query)) {
-              filteredByKeyword++;
-              continue;
-            }
-
-            termsToAnalyze.push(term);
-          }
-        }
-
-        this.logger.log(
-          `[EMERGING] Semantic zone filtering: ${filteredBySemanticZone} legitimate, ${filteredByKeyword} existing keywords, ` +
-          `${termsToAnalyze.length} terms remaining for analysis`
-        );
-
-        // STEP 4: Analyze remaining terms for emerging threats
-        // HIGH SENSITIVITY: Lower risk threshold from 30 to 20
+        // STEP 3: Analyze candidate terms for scam patterns
+        // Only terms that match scam patterns will be flagged (no whitelist needed)
         const HIGH_SENSITIVITY_THRESHOLD = 20;
         const allThreats: EmergingThreat[] = [];
 
-        for (const term of termsToAnalyze) {
+        for (const term of candidateTerms) {
           const query = term.query.toLowerCase();
           const embeddingMatch = embeddingResults.get(query);
           const threat = this.analyzeTermForThreats(term, benchmarks, days, embeddingMatch);
 
-          // HIGH SENSITIVITY: Lower threshold to catch more potential scams
+          // Only add if it has scam signals and meets threshold
           if (threat && threat.riskScore >= HIGH_SENSITIVITY_THRESHOLD) {
             allThreats.push(threat);
           }

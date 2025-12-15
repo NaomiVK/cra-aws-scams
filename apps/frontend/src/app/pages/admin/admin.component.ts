@@ -8,7 +8,6 @@ import {
   EmergingThreatsResponse,
   ScamKeywordsConfig,
   KeywordCategory,
-  ExcludedTermsResponse,
 } from '@cra-scam-detection/shared-types';
 
 type CategoryKey = 'fakeExpiredBenefits' | 'illegitimatePaymentMethods' | 'threatLanguage' | 'suspiciousModifiers';
@@ -35,14 +34,10 @@ export class AdminComponent implements OnInit {
 
   emergingThreats = signal<EmergingThreatsResponse | null>(null);
   keywordsConfig = signal<ScamKeywordsConfig | null>(null);
-  excludedTerms = signal<ExcludedTermsResponse | null>(null);
   selectedDays = signal(7);
   currentPage = signal(1);
   selectedCategory = signal<CategoryKey>('fakeExpiredBenefits');
   newKeyword = signal('');
-  newWhitelistPattern = signal('');
-  newExcludedTerm = signal('');
-  selectedExcludedCategory = signal('generalInquiry');
 
   // Modal state
   pendingThreat = signal<EmergingThreat | null>(null);
@@ -55,7 +50,6 @@ export class AdminComponent implements OnInit {
   ngOnInit(): void {
     this.loadEmergingThreats();
     this.loadKeywordsConfig();
-    this.loadExcludedTerms();
   }
 
   loadEmergingThreats(): void {
@@ -90,32 +84,6 @@ export class AdminComponent implements OnInit {
       error: (err) => {
         console.error('Failed to load keywords config', err);
       },
-    });
-  }
-
-  loadExcludedTerms(): void {
-    this.api.getExcludedTerms().subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.excludedTerms.set(res.data);
-        }
-      },
-      error: (err) => {
-        console.error('Failed to load excluded terms', err);
-      },
-    });
-  }
-
-  addExcludedTerm(): void {
-    const term = this.newExcludedTerm().trim();
-    if (!term) return;
-
-    this.api.addExcludedTerm(term, this.selectedExcludedCategory()).subscribe({
-      next: () => {
-        this.newExcludedTerm.set('');
-        this.loadExcludedTerms();
-      },
-      error: (err) => console.error('Failed to add excluded term', err),
     });
   }
 
@@ -166,21 +134,6 @@ export class AdminComponent implements OnInit {
       },
       error: (err) => {
         console.error('Failed to add keyword', err);
-        this.loadEmergingThreats(); // Reload on error
-      },
-    });
-  }
-
-  addToWhitelist(threat: EmergingThreat): void {
-    // Optimistic UI - remove immediately
-    this.removeFromList(threat.id);
-
-    this.api.addWhitelist(threat.query).subscribe({
-      next: () => {
-        this.loadKeywordsConfig();
-      },
-      error: (err) => {
-        console.error('Failed to add to whitelist', err);
         this.loadEmergingThreats(); // Reload on error
       },
     });
@@ -263,25 +216,6 @@ export class AdminComponent implements OnInit {
     this.modalService.open(this.categoryModal, { centered: true });
   }
 
-  bulkAddToWhitelist(): void {
-    const selected = this.selectedThreats();
-    const threats = this.emergingThreats()?.threats || [];
-    const selectedThreats = threats.filter(t => selected.has(t.id));
-
-    // Optimistic UI - remove all selected
-    selectedThreats.forEach(t => this.removeFromList(t.id));
-
-    // Add each to whitelist
-    selectedThreats.forEach(threat => {
-      this.api.addWhitelist(threat.query).subscribe({
-        error: (err) => console.error('Failed to add to whitelist', err),
-      });
-    });
-
-    this.selectedThreats.set(new Set());
-    this.loadKeywordsConfig();
-  }
-
   bulkDismiss(): void {
     const selected = this.selectedThreats();
     const threats = this.emergingThreats()?.threats || [];
@@ -331,19 +265,6 @@ export class AdminComponent implements OnInit {
         this.loadKeywordsConfig();
       },
       error: (err) => console.error('Failed to add keyword', err),
-    });
-  }
-
-  addWhitelistPattern(): void {
-    const pattern = this.newWhitelistPattern().trim();
-    if (!pattern) return;
-
-    this.api.addWhitelist(pattern).subscribe({
-      next: () => {
-        this.newWhitelistPattern.set('');
-        this.loadKeywordsConfig();
-      },
-      error: (err) => console.error('Failed to add whitelist pattern', err),
     });
   }
 
