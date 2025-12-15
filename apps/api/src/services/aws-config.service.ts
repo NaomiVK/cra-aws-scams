@@ -18,21 +18,36 @@ export class AwsConfigService implements OnModuleInit {
   private readonly region = process.env['AWS_REGION'] || 'us-east-2';
 
   // Promise that resolves when secrets are loaded
-  private readyResolve!: () => void;
+  private readyResolve: (() => void) | null = null;
+  private initialized = false;
   public readonly ready: Promise<void> = new Promise((resolve) => {
     this.readyResolve = resolve;
   });
 
   async onModuleInit() {
-    // Initialize DynamoDB client (works in both dev and prod)
-    this.initializeDynamoDb();
-
-    if (environment.production) {
-      await this.loadSecretsFromParameterStore();
-    } else {
-      this.loadSecretsFromEnv();
+    // Prevent multiple initializations
+    if (this.initialized) {
+      this.logger.warn('AwsConfigService already initialized, skipping');
+      return;
     }
-    this.readyResolve(); // Signal that loading is complete
+
+    try {
+      // Initialize DynamoDB client (works in both dev and prod)
+      this.initializeDynamoDb();
+
+      if (environment.production) {
+        await this.loadSecretsFromParameterStore();
+      } else {
+        this.loadSecretsFromEnv();
+      }
+    } finally {
+      // Always signal ready, even on partial failure
+      this.initialized = true;
+      if (this.readyResolve) {
+        this.readyResolve();
+        this.readyResolve = null; // Prevent multiple calls
+      }
+    }
   }
 
   private initializeDynamoDb(): void {

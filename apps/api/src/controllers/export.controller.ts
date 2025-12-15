@@ -21,10 +21,10 @@ export class ExportController {
    */
   @Get('csv')
   async exportCsv(
+    @Res() res: Response,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('days') days?: string,
-    @Res() res?: Response
+    @Query('days') days?: string
   ) {
     const dateRange = this.getDateRange(startDate, endDate, days);
 
@@ -62,7 +62,14 @@ export class ExportController {
     const csvContent = [
       headers.join(','),
       ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        row.map((cell) => {
+          let value = String(cell);
+          // Prevent CSV injection - prefix cells starting with formula characters
+          if (value.match(/^[=+\-@\t\r]/)) {
+            value = "'" + value;
+          }
+          return `"${value.replace(/"/g, '""')}"`;
+        }).join(',')
       ),
     ].join('\n');
 
@@ -79,10 +86,10 @@ export class ExportController {
    */
   @Get('excel')
   async exportExcel(
+    @Res() res: Response,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('days') days?: string,
-    @Res() res?: Response
+    @Query('days') days?: string
   ) {
     const dateRange = this.getDateRange(startDate, endDate, days);
 

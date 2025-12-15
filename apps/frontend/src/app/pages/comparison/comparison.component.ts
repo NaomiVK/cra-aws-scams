@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgbDatepickerModule, NgbDate, NgbCalendar } from '@ng-bootstrap/ng-bootstrap';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { ComparisonResponse, DateRange, TermComparison } from '@cra-scam-detection/shared-types';
 
@@ -132,7 +133,7 @@ export class ComparisonComponent implements OnInit {
         const period1 = this.getDateRangeFromToday(days);
         const period2 = this.getPreviousPeriod(period1, days);
 
-        const response = await this.api.getComparison(period1, period2).toPromise();
+        const response = await firstValueFrom(this.api.getComparison(period1, period2));
         if (response?.success && response.data) {
           this.comparisonData.set(response.data);
         } else {
@@ -168,7 +169,7 @@ export class ComparisonComponent implements OnInit {
       endDate: this.ngbDateToString(p2End),
     };
 
-    const response = await this.api.getComparison(period1, period2).toPromise();
+    const response = await firstValueFrom(this.api.getComparison(period1, period2));
     if (response?.success && response.data) {
       this.comparisonData.set(response.data);
     } else {

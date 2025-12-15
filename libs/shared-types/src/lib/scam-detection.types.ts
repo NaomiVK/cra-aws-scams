@@ -510,3 +510,50 @@ export type ExcludedTermsResponse = {
   }>;
   whitelistPatterns: string[];
 };
+
+// ============================================================================
+// SEED PHRASES CONFIGURATION TYPES
+// Used for embedding-based scam detection
+// ============================================================================
+
+/**
+ * Seed phrase category with severity and terms
+ */
+export type SeedPhraseCategory = {
+  severity: Severity;
+  terms: string[];
+};
+
+/**
+ * Individual seed phrase with metadata
+ */
+export type SeedPhrase = {
+  term: string;
+  category: string;
+  severity: Severity;
+};
+
+/**
+ * Seed phrases configuration (from seed-phrases.json)
+ */
+export type SeedPhrasesConfig = {
+  version: string;
+  lastUpdated: string;
+  description: string;
+  phrases: Record<string, SeedPhraseCategory>;
+  settings: {
+    similarityThreshold: number;
+    model: string;
+    dimensions: number;
+  };
+};
+
+/**
+ * Seed phrase record from DynamoDB
+ */
+export type SeedPhraseRecord = {
+  category: string;
+  term: string;
+  severity: string;
+  createdAt: string;
+};

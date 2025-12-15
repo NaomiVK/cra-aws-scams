@@ -88,9 +88,10 @@ export class TrendsService {
             endTime,
           });
 
-          // Log raw response for debugging
+          // Log raw response for debugging - check for HTML error pages
           if (typeof result === 'string' && result.startsWith('<')) {
-            this.logger.error(`[TRENDS] Google returned HTML instead of JSON for "${keyword}". First 500 chars: ${result.substring(0, 500)}`);
+            const preview = result.length > 500 ? result.substring(0, 500) + '...' : result;
+            this.logger.error(`[TRENDS] Google returned HTML instead of JSON for "${keyword}" (${result.length} bytes). Preview: ${preview}`);
             return null;
           }
 

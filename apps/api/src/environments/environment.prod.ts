@@ -46,7 +46,7 @@ export const environment = {
     benchmarksTtl: 3600,
   },
 
-  // CORS - in production behind nginx, allow all origins
-  // nginx handles the actual request proxying
-  frontendUrl: process.env['FRONTEND_URL'] || '*',
+  // CORS - in production, require explicit FRONTEND_URL for security
+  // Fallback to localhost to prevent accidentally exposing API to all origins
+  frontendUrl: process.env['FRONTEND_URL'] || 'http://localhost:4200',
 };

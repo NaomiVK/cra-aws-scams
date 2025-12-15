@@ -156,7 +156,7 @@ export class ApiService {
   downloadCsv(dateRange?: DateRange): void {
     let url = `${this.baseUrl}/export/csv`;
     if (dateRange) {
-      url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+      url += `?startDate=${encodeURIComponent(dateRange.startDate)}&endDate=${encodeURIComponent(dateRange.endDate)}`;
     }
     window.open(url, '_blank');
   }
@@ -164,7 +164,7 @@ export class ApiService {
   downloadExcel(dateRange?: DateRange): void {
     let url = `${this.baseUrl}/export/excel`;
     if (dateRange) {
-      url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+      url += `?startDate=${encodeURIComponent(dateRange.startDate)}&endDate=${encodeURIComponent(dateRange.endDate)}`;
     }
     window.open(url, '_blank');
   }

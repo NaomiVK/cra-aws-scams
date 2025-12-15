@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal, ViewChild, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { TrendsResult, InterestByRegionResponse, RegionInterest } from '@cra-scam-detection/shared-types';
 import { NgApexchartsModule, ChartComponent, ApexChart, ApexXAxis, ApexYAxis, ApexStroke, ApexTooltip, ApexDataLabels, ApexLegend, ApexFill, ApexGrid, ApexMarkers } from 'ng-apexcharts';
@@ -195,7 +196,7 @@ export class TrendsComponent implements OnInit, OnDestroy {
   private async loadGoogleCharts(): Promise<void> {
     // Fetch API key from server
     try {
-      const response = await this.api.getMapsApiKey().toPromise();
+      const response = await firstValueFrom(this.api.getMapsApiKey());
       if (response?.success && response.data?.apiKey) {
         this.googleMapsApiKey = response.data.apiKey;
         console.log('Google Maps API key loaded successfully');
@@ -222,6 +223,10 @@ export class TrendsComponent implements OnInit, OnDestroy {
     script.src = 'https://www.gstatic.com/charts/loader.js';
     script.onload = () => {
       console.log('Google Charts loader script loaded, initializing geochart package...');
+      if (typeof google === 'undefined' || !google.charts) {
+        console.error('Google Charts failed to load properly');
+        return;
+      }
       google.charts.load('current', {
         packages: ['geochart'],
         mapsApiKey: this.googleMapsApiKey
@@ -255,6 +260,13 @@ export class TrendsComponent implements OnInit, OnDestroy {
       console.log('canada-geochart element not found in DOM');
       return;
     }
+
+    // Check Google Charts is available
+    if (typeof google === 'undefined' || !google.visualization) {
+      console.error('Google Charts visualization not available');
+      return;
+    }
+
     console.log('Drawing GeoChart with', regionData.regions.length, 'regions');
 
     // Build data table for GeoChart
@@ -296,7 +308,7 @@ export class TrendsComponent implements OnInit, OnDestroy {
     this.currentSearchTerm.set('Monitored Scam Keywords');
 
     try {
-      const response = await this.api.getScamKeywordTrends().toPromise();
+      const response = await firstValueFrom(this.api.getScamKeywordTrends());
       if (response?.success && response.data) {
         this.trendsData.set(response.data);
         this.updateChart(response.data);
@@ -324,7 +336,7 @@ export class TrendsComponent implements OnInit, OnDestroy {
     this.regionData.set(null);
 
     try {
-      const response = await this.api.getTrends([term], this.selectedTimePeriod()).toPromise();
+      const response = await firstValueFrom(this.api.getTrends([term], this.selectedTimePeriod()));
       if (response?.success && response.data) {
         this.trendsData.set(response.data);
         this.updateChart(response.data);
@@ -343,7 +355,7 @@ export class TrendsComponent implements OnInit, OnDestroy {
   async loadRegionData(keyword: string): Promise<void> {
     this.loadingRegion.set(true);
     try {
-      const response = await this.api.getInterestByRegion(keyword).toPromise();
+      const response = await firstValueFrom(this.api.getInterestByRegion(keyword));
       if (response?.success && response.data) {
         this.regionData.set(response.data);
       }

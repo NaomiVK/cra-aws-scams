@@ -43,15 +43,21 @@ export class ComparisonService {
           ),
         ]);
 
-        // Create maps for quick lookup
+        // Create maps for quick lookup - skip rows without valid keys
         const currentMap = new Map<string, SearchAnalyticsRow>();
         const previousMap = new Map<string, SearchAnalyticsRow>();
 
         for (const row of currentData) {
-          currentMap.set(row.keys[0]?.toLowerCase() || '', row);
+          const key = row.keys[0]?.toLowerCase();
+          if (key) {
+            currentMap.set(key, row);
+          }
         }
         for (const row of previousData) {
-          previousMap.set(row.keys[0]?.toLowerCase() || '', row);
+          const key = row.keys[0]?.toLowerCase();
+          if (key) {
+            previousMap.set(key, row);
+          }
         }
 
         // Get all unique queries

@@ -76,12 +76,19 @@ export class DynamoDbService implements OnModuleInit {
       this.logger.log(`Loaded ${items.length} seed phrases from DynamoDB (excluded whitelist/seen-terms)`);
       return items;
     } catch (error) {
-      // Table might not exist yet - that's OK
+      // Table might not exist yet - that's OK in dev
       if (error.name === 'ResourceNotFoundException') {
         this.logger.warn(`Table ${this.tableName} not found - will use local config only`);
         return [];
       }
-      this.logger.error(`Failed to scan seed phrases: ${error.message}`);
+      // Differentiate error types for better debugging
+      if (error.name === 'ProvisionedThroughputExceededException') {
+        this.logger.error(`DynamoDB throttled - seed phrases scan: ${error.message}`);
+      } else if (error.name === 'AccessDeniedException') {
+        this.logger.error(`DynamoDB access denied - check IAM permissions: ${error.message}`);
+      } else {
+        this.logger.error(`Failed to scan seed phrases [${error.name}]: ${error.message}`);
+      }
       return [];
     }
   }

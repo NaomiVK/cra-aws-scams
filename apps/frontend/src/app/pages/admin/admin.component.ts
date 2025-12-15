@@ -1,7 +1,8 @@
-import { Component, inject, signal, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { Component, inject, signal, OnInit, TemplateRef, ViewChild, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgbNavModule, NgbTooltipModule, NgbPaginationModule, NgbModal, NgbModalModule } from '@ng-bootstrap/ng-bootstrap';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../../services/api.service';
 import {
   EmergingThreat,
@@ -22,6 +23,7 @@ type CategoryKey = 'fakeExpiredBenefits' | 'illegitimatePaymentMethods' | 'threa
 export class AdminComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly modalService = inject(NgbModal);
+  private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild('categoryModal') categoryModal!: TemplateRef<unknown>;
 
@@ -54,7 +56,9 @@ export class AdminComponent implements OnInit {
 
   loadEmergingThreats(): void {
     this.loading.set(true);
-    this.api.getEmergingThreats(this.selectedDays(), this.currentPage()).subscribe({
+    this.api.getEmergingThreats(this.selectedDays(), this.currentPage()).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: (res) => {
         if (res.success) {
           this.emergingThreats.set(res.data);
@@ -75,7 +79,9 @@ export class AdminComponent implements OnInit {
   }
 
   loadKeywordsConfig(): void {
-    this.api.getKeywordsConfig().subscribe({
+    this.api.getKeywordsConfig().pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: (res) => {
         if (res.success) {
           this.keywordsConfig.set(res.data);
@@ -126,7 +132,9 @@ export class AdminComponent implements OnInit {
     // Optimistic UI - remove immediately
     this.removeFromList(threat.id);
 
-    this.api.addKeyword(threat.query, this.modalCategory()).subscribe({
+    this.api.addKeyword(threat.query, this.modalCategory()).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: () => {
         this.loadKeywordsConfig();
         this.modalService.dismissAll();
@@ -143,7 +151,9 @@ export class AdminComponent implements OnInit {
     // Optimistic UI - remove immediately
     this.removeFromList(threat.id);
 
-    this.api.dismissThreat(threat.id).subscribe({
+    this.api.dismissThreat(threat.id).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       error: (err) => {
         console.error('Failed to dismiss', err);
         this.loadEmergingThreats(); // Reload on error
@@ -226,7 +236,9 @@ export class AdminComponent implements OnInit {
 
     // Dismiss each
     selectedThreats.forEach(threat => {
-      this.api.dismissThreat(threat.id).subscribe({
+      this.api.dismissThreat(threat.id).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         error: (err) => console.error('Failed to dismiss', err),
       });
     });
@@ -244,7 +256,9 @@ export class AdminComponent implements OnInit {
 
     // Add each as keyword
     selectedThreats.forEach(threat => {
-      this.api.addKeyword(threat.query, this.modalCategory()).subscribe({
+      this.api.addKeyword(threat.query, this.modalCategory()).pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
         error: (err) => console.error('Failed to add keyword', err),
       });
     });
@@ -259,7 +273,9 @@ export class AdminComponent implements OnInit {
     const term = this.newKeyword().trim();
     if (!term) return;
 
-    this.api.addKeyword(term, this.selectedCategory()).subscribe({
+    this.api.addKeyword(term, this.selectedCategory()).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: () => {
         this.newKeyword.set('');
         this.loadKeywordsConfig();

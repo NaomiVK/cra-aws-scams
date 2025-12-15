@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -8,6 +8,8 @@ import {
   NgbPaginationModule,
   NgbTooltipModule,
 } from '@ng-bootstrap/ng-bootstrap';
+import { firstValueFrom } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../../services/api.service';
 import {
   DashboardData,
@@ -36,6 +38,7 @@ type SortDirection = 'asc' | 'desc';
 })
 export class DashboardComponent implements OnInit {
   private readonly api = inject(ApiService);
+  private readonly destroyRef = inject(DestroyRef);
 
   // Loading state
   loading = signal(true);
@@ -140,7 +143,9 @@ export class DashboardComponent implements OnInit {
   }
 
   loadEmergingThreats(): void {
-    this.api.getEmergingThreats(7).subscribe({
+    this.api.getEmergingThreats(7).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
       next: (res) => {
         if (res.success) {
           this.emergingThreats.set(res.data);
@@ -155,7 +160,7 @@ export class DashboardComponent implements OnInit {
     this.error.set(null);
 
     try {
-      const response = await this.api.getDashboard(this.dateRange()).toPromise();
+      const response = await firstValueFrom(this.api.getDashboard(this.dateRange()));
       if (response?.success && response.data) {
         this.dashboardData.set(response.data);
       } else {
