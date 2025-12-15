@@ -17,7 +17,39 @@
         "cra phone number",
         "cra contact",
         "cra hours",
-        "cra office"
+        "cra office",
+        "cra account locked",
+        "cra password reset",
+        "cra security code"
+      ]
+    },
+    "serviceInquiry": {
+      "description": "General inquiries about CRA services, wait times, and contact information",
+      "exemplars": [
+        "cra call",
+        "cra call wait time",
+        "cra call answer rate",
+        "cra hold time",
+        "cra phone wait",
+        "cra wait times",
+        "cra service hours",
+        "cra callback",
+        "cra call back service",
+        "cra phone service",
+        "cra customer service",
+        "cra service level",
+        "cra response time",
+        "cra processing time",
+        "cra turnaround time",
+        "how long does cra take",
+        "cra telephone",
+        "call cra",
+        "calling cra",
+        "reach cra",
+        "contact cra by phone",
+        "cra agent",
+        "speak to cra",
+        "talk to cra"
       ]
     },
     "generalInquiry": {
@@ -115,7 +147,41 @@
       "exemplars": [
         "what is gst",
         "what is ccb",
-        "what is oas"
+        "what is oas",
+        "gst credit",
+        "gst credit dates",
+        "gst payment dates",
+        "ccb payment",
+        "ccb payment dates",
+        "ccb calculator",
+        "child benefit",
+        "canada child benefit",
+        "carbon rebate",
+        "carbon tax rebate",
+        "climate action incentive",
+        "caip",
+        "trillium benefit",
+        "ontario trillium",
+        "gst hst credit",
+        "quarterly benefit",
+        "benefit payment schedule"
+      ]
+    },
+    "scamAwareness": {
+      "description": "Legitimate queries about identifying or reporting scams (not the scams themselves)",
+      "exemplars": [
+        "is this a scam",
+        "cra scam warning",
+        "report cra scam",
+        "how to report scam",
+        "cra fraud reporting",
+        "identify cra scam",
+        "legitimate cra call",
+        "how to verify cra",
+        "cra official number",
+        "real cra number",
+        "cra scam alert",
+        "protect from scam"
       ]
     }
   }

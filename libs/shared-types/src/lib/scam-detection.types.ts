@@ -492,3 +492,21 @@ export type LegitimateQueriesConfig = {
     exemplars: string[];
   }>;
 };
+
+/**
+ * Excluded terms response for admin console
+ */
+export type ExcludedTermsResponse = {
+  status: {
+    ready: boolean;
+    threshold: number;
+    totalExemplars: number;
+    categoryCount: number;
+  };
+  categories: Array<{
+    name: string;
+    exemplarCount: number;
+    description: string;
+  }>;
+  whitelistPatterns: string[];
+};

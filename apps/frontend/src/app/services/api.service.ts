@@ -12,6 +12,7 @@ import {
   EmergingThreatsResponse,
   ScamKeywordsConfig,
   InterestByRegionResponse,
+  ExcludedTermsResponse,
 } from '@cra-scam-detection/shared-types';
 import { environment } from '../../environments/environment';
 
@@ -219,6 +220,25 @@ export class ApiService {
   getMapsApiKey(): Observable<ApiResponse<{ apiKey: string }>> {
     return this.http.get<ApiResponse<{ apiKey: string }>>(
       `${this.baseUrl}/config/maps-key`
+    );
+  }
+
+  /**
+   * Get excluded/legitimate terms configuration
+   */
+  getExcludedTerms(): Observable<ApiResponse<ExcludedTermsResponse>> {
+    return this.http.get<ApiResponse<ExcludedTermsResponse>>(
+      `${this.baseUrl}/scams/excluded`
+    );
+  }
+
+  /**
+   * Add a term to excluded/legitimate terms
+   */
+  addExcludedTerm(term: string, category?: string): Observable<ApiResponse<{ message: string }>> {
+    return this.http.post<ApiResponse<{ message: string }>>(
+      `${this.baseUrl}/scams/excluded`,
+      { term, category }
     );
   }
 }

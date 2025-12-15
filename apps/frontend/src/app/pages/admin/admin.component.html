@@ -294,6 +294,123 @@
     </li>
 
     <li [ngbNavItem]="4">
+      <button ngbNavLink>Excluded Terms</button>
+      <ng-template ngbNavContent>
+        <div class="pt-4">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Excluded Terms</strong> are automatically filtered out from Emerging Threats.
+            Queries that semantically match these patterns are considered legitimate CRA-related searches.
+          </div>
+
+          <!-- Status Card -->
+          @if (excludedTerms(); as data) {
+            <div class="card mb-4">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Semantic Zone Status</span>
+                @if (data.status.ready) {
+                  <span class="badge bg-success">Active</span>
+                } @else {
+                  <span class="badge bg-warning">Initializing...</span>
+                }
+              </div>
+              <div class="card-body">
+                <div class="row text-center">
+                  <div class="col-md-4">
+                    <h4 class="mb-0">{{ data.status.categoryCount }}</h4>
+                    <small class="text-muted">Categories</small>
+                  </div>
+                  <div class="col-md-4">
+                    <h4 class="mb-0">{{ data.status.totalExemplars }}</h4>
+                    <small class="text-muted">Total Exemplars</small>
+                  </div>
+                  <div class="col-md-4">
+                    <h4 class="mb-0">{{ (data.status.threshold * 100).toFixed(0) }}%</h4>
+                    <small class="text-muted">Similarity Threshold</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Add New Excluded Term -->
+            <div class="card mb-4">
+              <div class="card-body">
+                <h6 class="card-title">Add Excluded Term</h6>
+                <p class="text-muted small">
+                  Add a term that should be excluded from scam detection. The system will learn to exclude similar queries.
+                </p>
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <select class="form-select" [ngModel]="selectedExcludedCategory()" (ngModelChange)="selectedExcludedCategory.set($event)">
+                      @for (cat of data.categories; track cat.name) {
+                        <option [value]="cat.name">{{ cat.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <input type="text" class="form-control" placeholder="Enter term (e.g., cra processing times)"
+                      [ngModel]="newExcludedTerm()" (ngModelChange)="newExcludedTerm.set($event)"
+                      (keyup.enter)="addExcludedTerm()">
+                  </div>
+                  <div class="col-md-2">
+                    <button class="btn btn-primary w-100" (click)="addExcludedTerm()">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Categories -->
+            <div class="card mb-4">
+              <div class="card-header">Excluded Categories</div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th class="text-end">Exemplars</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (cat of data.categories; track cat.name) {
+                        <tr>
+                          <td><code>{{ cat.name }}</code></td>
+                          <td class="text-muted">{{ cat.description }}</td>
+                          <td class="text-end">
+                            <span class="badge bg-primary">{{ cat.exemplarCount }}</span>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Legacy Whitelist Patterns -->
+            @if (data.whitelistPatterns.length > 0) {
+              <div class="card">
+                <div class="card-header">Legacy Whitelist Patterns (also excluded)</div>
+                <div class="card-body">
+                  @for (pattern of data.whitelistPatterns; track pattern) {
+                    <span class="badge bg-secondary me-1 mb-1 p-2">{{ pattern }}</span>
+                  }
+                </div>
+              </div>
+            }
+          } @else {
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          }
+        </div>
+      </ng-template>
+    </li>
+
+    <li [ngbNavItem]="5">
       <button ngbNavLink>About</button>
       <ng-template ngbNavContent>
         <div class="card mt-4">

@@ -363,11 +363,20 @@ export class EmergingThreatService {
     // Determine risk level
     const riskLevel = this.getRiskLevel(riskScore);
 
-    // HIGH SENSITIVITY: Lower threshold from 20 to 15
-    // If we have an embedding match, always include it (semantic match is strong signal)
-    // If we have any pattern matches or similar scams, include it (high sensitivity mode)
+    // CRITICAL FIX: Require at least one POSITIVE scam indicator before flagging.
+    // CTR anomaly alone is NOT enough - irrelevant queries (e.g., "stat holidays ontario 2025")
+    // naturally have low CTR when they show CRA pages because users don't want CRA results.
+    // We must have evidence the query is SCAM-RELATED, not just that CTR is low.
+    const hasScamSignal = embeddingMatch || matchedPatterns.length > 0 || similarScams.length > 0;
+
+    if (!hasScamSignal) {
+      // No scam indicators at all - this query is not related to scams
+      return null;
+    }
+
+    // Additional threshold check for queries with weak signals
     const MIN_RISK_THRESHOLD = 15;
-    if (!embeddingMatch && riskScore < MIN_RISK_THRESHOLD && matchedPatterns.length === 0 && similarScams.length === 0) {
+    if (riskScore < MIN_RISK_THRESHOLD) {
       return null;
     }
 
