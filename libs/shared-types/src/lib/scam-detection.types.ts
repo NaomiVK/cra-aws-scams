@@ -376,3 +376,119 @@ export type CTRBenchmarks = {
   };
   totalQueriesAnalyzed: number;
 };
+
+// ============================================================================
+// SEMANTIC ZONE DETECTION TYPES
+// Used for embedding-based legitimate query classification
+// ============================================================================
+
+/**
+ * Semantic category classification result
+ * Used to determine if a query is in a "legitimate zone" based on embedding similarity
+ */
+export type SemanticCategory = {
+  name: string;                     // Category name (e.g., "accountAccess", "taxFiling")
+  type: 'legitimate' | 'suspicious' | 'neutral';
+  similarity: number;               // Cosine similarity to category centroid (0-1)
+  distance: number;                 // Distance from centroid (1 - similarity)
+  confidence: number;               // Confidence level (0-1)
+};
+
+/**
+ * Classification result from semantic zone check
+ */
+export type SemanticZoneResult = {
+  query: string;
+  isLegitimate: boolean;            // True if query is in a legitimate zone
+  nearestCategory: string;          // Name of nearest legitimate category
+  similarity: number;               // Similarity to nearest category centroid
+  allCategories: SemanticCategory[]; // Similarity to all categories (for debugging)
+};
+
+/**
+ * Signal type for detection convergence
+ */
+export type DetectionSignalType =
+  | 'embedding'       // Semantic similarity to known scam patterns
+  | 'ctr_anomaly'     // CTR below expected for position
+  | 'pattern_match'   // Dynamic pattern matches (dollar amounts, urgency)
+  | 'velocity'        // Rapid impression growth
+  | 'trends'          // Google Trends correlation
+  | 'semantic_zone';  // Proximity to scam semantic zones
+
+/**
+ * Individual detection signal
+ * Each signal type provides independent evidence of scam potential
+ */
+export type DetectionSignal = {
+  type: DetectionSignalType;
+  active: boolean;                  // True if this signal fires
+  strength: number;                 // 0-1, how strong the signal is
+  confidence: number;               // 0-1, confidence in the signal
+  details: string;                  // Human-readable explanation
+  metadata?: Record<string, unknown>; // Additional signal-specific data
+};
+
+/**
+ * Signal weights for convergence calculation
+ */
+export type SignalWeights = {
+  embedding: number;
+  ctr_anomaly: number;
+  pattern_match: number;
+  velocity: number;
+  trends: number;
+  semantic_zone: number;
+};
+
+/**
+ * Result of signal convergence evaluation
+ * Used to determine if multiple signals agree on scam potential
+ */
+export type SignalConvergenceResult = {
+  query: string;
+  signals: DetectionSignal[];       // All evaluated signals
+  activeSignals: DetectionSignal[]; // Only signals that fired
+  convergenceScore: number;         // Weighted sum of active signals (0-100)
+  activeSignalCount: number;        // Number of signals that fired
+  shouldFlag: boolean;              // True if convergence threshold met
+  flagReason: string;               // Explanation of why flagged
+  semanticZone?: SemanticZoneResult; // Semantic zone check result
+};
+
+/**
+ * Enhanced FlaggedTerm with signal convergence data
+ */
+export type FlaggedTermWithConvergence = FlaggedTerm & {
+  convergence: SignalConvergenceResult;
+  semanticZone?: SemanticZoneResult;
+};
+
+/**
+ * Category centroid for semantic classification
+ */
+export type CategoryCentroid = {
+  name: string;
+  type: 'legitimate' | 'suspicious';
+  description: string;
+  centroid: number[];               // Embedding vector (3072 dimensions for text-embedding-3-large)
+  exemplarCount: number;            // Number of exemplars used to compute centroid
+  threshold: number;                // Similarity threshold for membership
+};
+
+/**
+ * Legitimate queries configuration (loaded from legitimate-queries.json)
+ */
+export type LegitimateQueriesConfig = {
+  version: string;
+  description: string;
+  settings: {
+    legitimateThreshold: number;
+    model: string;
+    cacheHours: number;
+  };
+  categories: Record<string, {
+    description: string;
+    exemplars: string[];
+  }>;
+};

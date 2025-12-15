@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { CacheService } from './cache.service';
 import { ComparisonService } from './comparison.service';
 import { ScamDetectionService } from './scam-detection.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
 import { TrendsService } from './trends.service';
+import { CategoryCentroidService } from './category-centroid.service';
+import { SignalConvergenceService } from './signal-convergence.service';
 import {
   EmergingThreat,
   EmergingThreatsResponse,
@@ -48,6 +50,10 @@ export class EmergingThreatService {
     private readonly searchConsoleService: SearchConsoleService,
     private readonly embeddingService: EmbeddingService,
     private readonly trendsService: TrendsService,
+    @Inject(forwardRef(() => CategoryCentroidService))
+    private readonly categoryCentroidService: CategoryCentroidService,
+    @Inject(forwardRef(() => SignalConvergenceService))
+    private readonly signalConvergenceService: SignalConvergenceService,
   ) {}
 
   /**
@@ -150,38 +156,85 @@ export class EmergingThreatService {
           }
         }
 
-        // STEP 3: Analyze all candidate terms for emerging threats
-        const allThreats: EmergingThreat[] = [];
-        let filteredByWhitelist = 0;
+        // STEP 3: Semantic zone filtering (replaces regex whitelist)
+        // Use batch semantic zone check for efficiency
+        let filteredBySemanticZone = 0;
         let filteredByKeyword = 0;
-        let filteredByWhitelistPattern = 0;
+        const termsToAnalyze: TermComparison[] = [];
 
-        for (const term of candidateTerms) {
+        if (this.categoryCentroidService.isReady()) {
+          // Batch check semantic zones
+          const semanticResults = await this.categoryCentroidService.batchCheckLegitimateZone(
+            candidateTerms.map(t => t.query)
+          );
+
+          for (let i = 0; i < candidateTerms.length; i++) {
+            const term = candidateTerms[i];
+            const semanticZone = semanticResults[i];
+            const query = term.query.toLowerCase();
+
+            // Filter if in legitimate semantic zone with high confidence
+            if (semanticZone.isLegitimate && semanticZone.similarity >= 0.80) {
+              filteredBySemanticZone++;
+              this.logger.debug(
+                `[SEMANTIC-ZONE] Filtered "${query}" - matched "${semanticZone.nearestCategory}" ` +
+                `(similarity: ${(semanticZone.similarity * 100).toFixed(1)}%)`
+              );
+              continue;
+            }
+
+            // Also filter exact keyword matches (already added to scam keywords)
+            if (this.scamDetectionService.isExactKeywordMatch(query)) {
+              filteredByKeyword++;
+              continue;
+            }
+
+            termsToAnalyze.push(term);
+          }
+        } else {
+          // Fallback to legacy whitelist if semantic zones not ready
+          this.logger.warn('[EMERGING] Semantic zones not ready, falling back to legacy whitelist');
+          for (const term of candidateTerms) {
+            const query = term.query.toLowerCase();
+
+            if (this.scamDetectionService.isExactWhitelistMatch(query) ||
+                this.scamDetectionService.isWhitelisted(query)) {
+              filteredBySemanticZone++;
+              continue;
+            }
+
+            if (this.scamDetectionService.isExactKeywordMatch(query)) {
+              filteredByKeyword++;
+              continue;
+            }
+
+            termsToAnalyze.push(term);
+          }
+        }
+
+        this.logger.log(
+          `[EMERGING] Semantic zone filtering: ${filteredBySemanticZone} legitimate, ${filteredByKeyword} existing keywords, ` +
+          `${termsToAnalyze.length} terms remaining for analysis`
+        );
+
+        // STEP 4: Analyze remaining terms for emerging threats
+        // HIGH SENSITIVITY: Lower risk threshold from 30 to 20
+        const HIGH_SENSITIVITY_THRESHOLD = 20;
+        const allThreats: EmergingThreat[] = [];
+
+        for (const term of termsToAnalyze) {
           const query = term.query.toLowerCase();
-
-          // Track filter reasons for logging
-          if (this.scamDetectionService.isExactWhitelistMatch(query)) {
-            filteredByWhitelist++;
-            continue;
-          }
-          if (this.scamDetectionService.isExactKeywordMatch(query)) {
-            filteredByKeyword++;
-            continue;
-          }
-          if (this.scamDetectionService.isWhitelisted(query)) {
-            filteredByWhitelistPattern++;
-            continue;
-          }
-
           const embeddingMatch = embeddingResults.get(query);
           const threat = this.analyzeTermForThreats(term, benchmarks, days, embeddingMatch);
-          if (threat && threat.riskScore >= 30) {
+
+          // HIGH SENSITIVITY: Lower threshold to catch more potential scams
+          if (threat && threat.riskScore >= HIGH_SENSITIVITY_THRESHOLD) {
             allThreats.push(threat);
           }
         }
 
         this.logger.log(
-          `[EMERGING] Filtered out: ${filteredByWhitelist} exact whitelist, ${filteredByKeyword} exact keyword, ${filteredByWhitelistPattern} whitelist pattern matches`
+          `[EMERGING] Analysis complete: ${allThreats.length} threats identified (threshold: ${HIGH_SENSITIVITY_THRESHOLD})`
         );
 
         // Sort by risk score descending
@@ -271,6 +324,9 @@ export class EmergingThreatService {
    * Analyze a single term for threat indicators
    * @param embeddingMatch Optional embedding match result from batch analysis
    * @param days Number of days in the comparison period (for velocity calculation)
+   *
+   * NOTE: Whitelist/semantic zone filtering is now done in batch in getEmergingThreats()
+   * Terms reaching this method have already passed semantic zone checks
    */
   private analyzeTermForThreats(
     term: TermComparison,
@@ -280,23 +336,8 @@ export class EmergingThreatService {
   ): EmergingThreat | null {
     const query = term.query.toLowerCase();
 
-    // Skip if exact match exists in whitelist (already added from admin console)
-    if (this.scamDetectionService.isExactWhitelistMatch(query)) {
-      this.logger.debug(`[FILTER] Skipping "${query}" - exact whitelist match`);
-      return null;
-    }
-
-    // Skip if exact match exists in keywords (already added from admin console)
-    if (this.scamDetectionService.isExactKeywordMatch(query)) {
-      this.logger.debug(`[FILTER] Skipping "${query}" - exact keyword match`);
-      return null;
-    }
-
-    // Skip if whitelisted (partial/pattern match)
-    if (this.scamDetectionService.isWhitelisted(query)) {
-      this.logger.debug(`[FILTER] Skipping "${query}" - whitelist pattern match`);
-      return null;
-    }
+    // Note: Semantic zone filtering is done in batch before this method is called
+    // No need for redundant whitelist checks here
 
     // Calculate CTR anomaly using dynamic benchmarks
     const ctrAnomaly = this.calculateCTRAnomaly(
@@ -322,9 +363,11 @@ export class EmergingThreatService {
     // Determine risk level
     const riskLevel = this.getRiskLevel(riskScore);
 
-    // Only return if there's meaningful risk
+    // HIGH SENSITIVITY: Lower threshold from 20 to 15
     // If we have an embedding match, always include it (semantic match is strong signal)
-    if (!embeddingMatch && riskScore < 20 && matchedPatterns.length === 0 && similarScams.length === 0) {
+    // If we have any pattern matches or similar scams, include it (high sensitivity mode)
+    const MIN_RISK_THRESHOLD = 15;
+    if (!embeddingMatch && riskScore < MIN_RISK_THRESHOLD && matchedPatterns.length === 0 && similarScams.length === 0) {
       return null;
     }
 

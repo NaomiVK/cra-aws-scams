@@ -3,12 +3,14 @@ import { CacheService } from './cache.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
 import { DynamoDbService } from './dynamodb.service';
+import { CategoryCentroidService } from './category-centroid.service';
 import {
   FlaggedTerm,
   Severity,
   ScamDetectionResult,
   ScamKeywordsConfig,
   DateRange,
+  SemanticZoneResult,
 } from '@cra-scam-detection/shared-types';
 import { SearchAnalyticsRow } from '@cra-scam-detection/shared-types';
 import { environment } from '../environments/environment';
@@ -27,6 +29,8 @@ export class ScamDetectionService implements OnModuleInit {
     @Inject(forwardRef(() => EmbeddingService))
     private readonly embeddingService: EmbeddingService,
     private readonly dynamoDbService: DynamoDbService,
+    @Inject(forwardRef(() => CategoryCentroidService))
+    private readonly categoryCentroidService: CategoryCentroidService,
   ) {
     this.keywordsConfig = scamKeywordsJson as unknown as ScamKeywordsConfig;
     this.logger.log(
@@ -342,9 +346,40 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   /**
+   * Check if query is in a legitimate semantic zone
+   * NEW: Uses embedding-based classification instead of regex whitelist
+   * This is the primary method for excluding legitimate queries
+   */
+  async isInLegitimateSemanticZone(query: string): Promise<SemanticZoneResult> {
+    if (!this.categoryCentroidService.isReady()) {
+      // Fallback to legacy whitelist if semantic zones not ready
+      const isWhitelisted = this.isWhitelisted(query);
+      return {
+        query: query.toLowerCase().trim(),
+        isLegitimate: isWhitelisted,
+        nearestCategory: isWhitelisted ? 'legacy-whitelist' : '',
+        similarity: isWhitelisted ? 1.0 : 0,
+        allCategories: [],
+      };
+    }
+
+    const result = await this.categoryCentroidService.isInLegitimateZone(query);
+
+    // Log semantic zone decisions for monitoring
+    if (result.isLegitimate) {
+      this.logger.debug(
+        `[SEMANTIC-ZONE] Query "${query}" matched category "${result.nearestCategory}" ` +
+        `(similarity: ${(result.similarity * 100).toFixed(1)}%) - excluded`
+      );
+    }
+
+    return result;
+  }
+
+  /**
    * Check if query is whitelisted (legitimate search)
-   * Uses word-boundary matching to prevent partial matches
-   * e.g., "t4" should not whitelist "fake t4 scam"
+   * LEGACY: Uses regex pattern matching - kept for backward compatibility
+   * Prefer isInLegitimateSemanticZone() for new code
    */
   isWhitelisted(query: string): boolean {
     const whitelist = this.keywordsConfig.whitelist.patterns;
@@ -583,9 +618,23 @@ export class ScamDetectionService implements OnModuleInit {
       const dbSuccess = await this.dynamoDbService.addWhitelist(pattern);
       this.logger.log(`[ADD_WHITELIST] DynamoDB persist: ${dbSuccess ? 'SUCCESS' : 'FAILED'}`);
 
-      this.logger.log(`[ADD_WHITELIST] Complete. "${patternLower}" is now active in whitelist`);
+      // Also add to semantic zones (CategoryCentroidService)
+      if (this.categoryCentroidService.isReady()) {
+        this.logger.log(`[ADD_WHITELIST] Adding to semantic zones...`);
+        await this.categoryCentroidService.addExemplar(pattern);
+        this.logger.log(`[ADD_WHITELIST] Semantic zone updated`);
+      }
+
+      this.logger.log(`[ADD_WHITELIST] Complete. "${patternLower}" is now active in whitelist and semantic zones`);
     } else {
       this.logger.log(`[ADD_WHITELIST] Pattern "${patternLower}" already exists in whitelist, skipping`);
     }
+  }
+
+  /**
+   * Get semantic zone service status
+   */
+  getSemanticZoneStatus(): { ready: boolean; categoryCount: number; totalExemplars: number; threshold: number } {
+    return this.categoryCentroidService.getStatus();
   }
 }

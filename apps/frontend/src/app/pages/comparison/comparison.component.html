@@ -25,8 +25,8 @@
       <div class="row g-3 align-items-end">
         <!-- Preset Selector -->
         <div class="col-lg-3">
-          <label class="form-label small text-muted mb-1">Comparison Period</label>
-          <select class="form-select"
+          <label for="comparisonPeriodSelect" class="form-label small text-muted mb-1">Comparison Period</label>
+          <select id="comparisonPeriodSelect" class="form-select"
             [ngModel]="selectedPreset()"
             (ngModelChange)="selectedPreset.set($event); onPresetChange()">
             @for (preset of comparisonPresets; track preset.value) {
@@ -40,9 +40,9 @@
           <div class="col-lg-8">
             <div class="row g-2">
               <div class="col-md-3">
-                <label class="form-label small text-muted mb-1">Period 1 Start</label>
+                <label for="period1StartInput" class="form-label small text-muted mb-1">Period 1 Start</label>
                 <div class="input-group">
-                  <input class="form-control" placeholder="yyyy-mm-dd"
+                  <input id="period1StartInput" class="form-control" placeholder="yyyy-mm-dd"
                     name="p1Start" [ngModel]="period1Start()"
                     (ngModelChange)="period1Start.set($event)"
                     ngbDatepicker #d1="ngbDatepicker" />
@@ -52,9 +52,9 @@
                 </div>
               </div>
               <div class="col-md-3">
-                <label class="form-label small text-muted mb-1">Period 1 End</label>
+                <label for="period1EndInput" class="form-label small text-muted mb-1">Period 1 End</label>
                 <div class="input-group">
-                  <input class="form-control" placeholder="yyyy-mm-dd"
+                  <input id="period1EndInput" class="form-control" placeholder="yyyy-mm-dd"
                     name="p1End" [ngModel]="period1End()"
                     (ngModelChange)="period1End.set($event)"
                     ngbDatepicker #d2="ngbDatepicker" />
@@ -64,9 +64,9 @@
                 </div>
               </div>
               <div class="col-md-3">
-                <label class="form-label small text-muted mb-1">Period 2 Start</label>
+                <label for="period2StartInput" class="form-label small text-muted mb-1">Period 2 Start</label>
                 <div class="input-group">
-                  <input class="form-control" placeholder="yyyy-mm-dd"
+                  <input id="period2StartInput" class="form-control" placeholder="yyyy-mm-dd"
                     name="p2Start" [ngModel]="period2Start()"
                     (ngModelChange)="period2Start.set($event)"
                     ngbDatepicker #d3="ngbDatepicker" />
@@ -76,9 +76,9 @@
                 </div>
               </div>
               <div class="col-md-3">
-                <label class="form-label small text-muted mb-1">Period 2 End</label>
+                <label for="period2EndInput" class="form-label small text-muted mb-1">Period 2 End</label>
                 <div class="input-group">
-                  <input class="form-control" placeholder="yyyy-mm-dd"
+                  <input id="period2EndInput" class="form-control" placeholder="yyyy-mm-dd"
                     name="p2End" [ngModel]="period2End()"
                     (ngModelChange)="period2End.set($event)"
                     ngbDatepicker #d4="ngbDatepicker" />
@@ -245,14 +245,14 @@
       <div class="card-body border-bottom">
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label small text-muted mb-1">Filter by query</label>
-            <input type="text" class="form-control" placeholder="Search queries..."
+            <label for="queryFilterInput" class="form-label small text-muted mb-1">Filter by query</label>
+            <input id="queryFilterInput" type="text" class="form-control" placeholder="Search queries..."
               [ngModel]="queryFilter()"
               (ngModelChange)="queryFilter.set($event)" />
           </div>
           <div class="col-md-3">
-            <label class="form-label small text-muted mb-1">Min change %</label>
-            <input type="number" class="form-control" placeholder="0"
+            <label for="minChangeFilterInput" class="form-label small text-muted mb-1">Min change %</label>
+            <input id="minChangeFilterInput" type="number" class="form-control" placeholder="0"
               [ngModel]="minChangeFilter()"
               (ngModelChange)="minChangeFilter.set($event)" min="0" max="100" />
           </div>

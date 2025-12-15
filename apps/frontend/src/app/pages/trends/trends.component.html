@@ -15,12 +15,12 @@
     <div class="card-body py-3">
       <div class="row g-3 align-items-end">
         <div class="col-lg-6">
-          <label class="form-label small text-muted mb-1">Search term</label>
+          <label for="searchTermInput" class="form-label small text-muted mb-1">Search term</label>
           <div class="input-group input-group-lg">
             <span class="input-group-text bg-white border-end-0">
               <i class="bi bi-search text-muted"></i>
             </span>
-            <input type="text" class="form-control border-start-0 ps-0"
+            <input type="text" id="searchTermInput" class="form-control border-start-0 ps-0"
               placeholder="Enter a search term (e.g., cra rent relief)"
               [ngModel]="searchTerm()"
               (ngModelChange)="searchTerm.set($event)"
@@ -28,8 +28,8 @@
           </div>
         </div>
         <div class="col-lg-3">
-          <label class="form-label small text-muted mb-1">Time period</label>
-          <select class="form-select form-select-lg"
+          <label for="timePeriodSelect" class="form-label small text-muted mb-1">Time period</label>
+          <select id="timePeriodSelect" class="form-select form-select-lg"
             [ngModel]="selectedTimePeriod()"
             (ngModelChange)="selectedTimePeriod.set($event); onTimePeriodChange()">
             @for (period of timePeriods; track period.value) {

@@ -5,7 +5,23 @@ import { ApiService } from '../../services/api.service';
 import { TrendsResult, InterestByRegionResponse, RegionInterest } from '@cra-scam-detection/shared-types';
 import { NgApexchartsModule, ChartComponent, ApexChart, ApexXAxis, ApexYAxis, ApexStroke, ApexTooltip, ApexDataLabels, ApexLegend, ApexFill, ApexGrid, ApexMarkers } from 'ng-apexcharts';
 
-declare const google: any;
+// Google Charts types - external library
+type GoogleVisualization = {
+  arrayToDataTable: (data: (string | number)[][]) => unknown;
+  GeoChart: new (element: HTMLElement) => { draw: (data: unknown, options: unknown) => void };
+};
+
+type GoogleCharts = {
+  load: (version: string, options: { packages: string[]; mapsApiKey: string }) => void;
+  setOnLoadCallback: (callback: () => void) => void;
+};
+
+type GoogleGlobal = {
+  visualization: GoogleVisualization;
+  charts: GoogleCharts;
+};
+
+declare const google: GoogleGlobal;
 
 export type ChartOptions = {
   series: ApexAxisChartSeries;
@@ -40,7 +56,7 @@ export class TrendsComponent implements OnInit, OnDestroy {
 
   private readonly api = inject(ApiService);
   private googleChartsLoaded = false;
-  private geoChart: any = null;
+  private geoChart: { draw: (data: unknown, options: unknown) => void } | null = null;
 
   loading = signal(true);
   error = signal<string | null>(null);
@@ -171,7 +187,7 @@ export class TrendsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Cleanup if needed
+    this.geoChart = null;
   }
 
   private googleMapsApiKey = '';

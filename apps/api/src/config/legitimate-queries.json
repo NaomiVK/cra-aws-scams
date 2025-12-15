@@ -1,0 +1,122 @@
+{
+  "version": "1.0.0",
+  "description": "Exemplar legitimate CRA queries for semantic zone classification. These patterns are used to compute embedding centroids for automatic legitimate query detection.",
+  "settings": {
+    "legitimateThreshold": 0.80,
+    "model": "text-embedding-3-large",
+    "cacheHours": 24
+  },
+  "categories": {
+    "accountAccess": {
+      "description": "Login, authentication, and account management queries",
+      "exemplars": [
+        "cra login",
+        "cra sign in",
+        "cra my account",
+        "my cra account",
+        "cra phone number",
+        "cra contact",
+        "cra hours",
+        "cra office"
+      ]
+    },
+    "generalInquiry": {
+      "description": "General how-to questions, eligibility checks, and informational queries",
+      "exemplars": [
+        "how to apply",
+        "how do i apply",
+        "eligibility",
+        "am i eligible",
+        "calculator",
+        "payment dates",
+        "payment schedule",
+        "when is",
+        "cra address",
+        "cra mailing address"
+      ]
+    },
+    "taxFiling": {
+      "description": "Tax return filing, slips, and assessment queries",
+      "exemplars": [
+        "t4",
+        "t1",
+        "tax return",
+        "file taxes",
+        "netfile",
+        "efile",
+        "notice of assessment",
+        "noa"
+      ]
+    },
+    "savingsAccounts": {
+      "description": "Registered savings accounts (TFSA, RRSP, RESP, RDSP, RRIF)",
+      "exemplars": [
+        "tfsa",
+        "tax free savings account",
+        "tax-free savings account",
+        "tfsa limit",
+        "tfsa contribution",
+        "rrsp",
+        "rrsp contribution",
+        "rrsp limit",
+        "registered retirement savings",
+        "rrif",
+        "registered retirement income fund",
+        "resp",
+        "registered education savings",
+        "rdsp",
+        "registered disability savings"
+      ]
+    },
+    "pensionBenefits": {
+      "description": "Pension and employment insurance benefit queries",
+      "exemplars": [
+        "cpp",
+        "canada pension plan",
+        "cpp contribution",
+        "cpp benefits",
+        "ei benefits",
+        "employment insurance",
+        "gis",
+        "guaranteed income supplement",
+        "oas",
+        "old age security"
+      ]
+    },
+    "taxCredits": {
+      "description": "Tax credits and deductions queries",
+      "exemplars": [
+        "disability tax credit",
+        "dtc",
+        "caregiver credit",
+        "home buyers plan",
+        "hbp",
+        "lifelong learning plan",
+        "llp",
+        "tuition credit",
+        "student loan interest",
+        "medical expenses",
+        "charitable donations"
+      ]
+    },
+    "accountManagement": {
+      "description": "Refunds, deposits, and tax calculation queries",
+      "exemplars": [
+        "refund status",
+        "direct deposit",
+        "benefits application",
+        "tax brackets",
+        "marginal tax rate",
+        "instalment payments"
+      ]
+    },
+    "legitimateBenefits": {
+      "description": "Queries about legitimate CRA benefits (GST, CCB, OAS info)",
+      "exemplars": [
+        "what is gst",
+        "what is ccb",
+        "what is oas"
+      ]
+    }
+  }
+}
