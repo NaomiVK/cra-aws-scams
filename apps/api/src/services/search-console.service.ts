@@ -219,7 +219,7 @@ export class SearchConsoleService implements OnModuleInit {
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
       dimensions: ['query'],
-      rowLimit: 2000,
+      rowLimit: 1000,
     });
   }
 

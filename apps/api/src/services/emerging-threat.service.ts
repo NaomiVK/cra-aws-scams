@@ -36,6 +36,27 @@ const DYNAMIC_PATTERNS = {
   freeMoneyPattern: /\b(bonus|extra|secret|hidden)\s+(money|cash|payment|benefit|refund|cheque|check)\b/i,
 };
 
+/**
+ * Legitimate query patterns - queries matching these should NOT be flagged as threats
+ * These are legitimate searches that may contain words like "free" but in a non-scam context
+ */
+const LEGITIMATE_QUERY_PATTERNS = [
+  /\b(software|app|application|program|tool|service)\b/i,  // tax software, filing app, etc.
+  /\bfile\s+(my\s+)?taxes?\s+(online\s+)?free\b/i,         // "file my taxes online free"
+  /\bfree\s+(tax\s+)?(filing|return|preparation)\b/i,      // "free tax filing", "free return"
+  /\b(turbotax|wealthsimple|h&r block|simpletax|ufile|netfile|studiotax|genutax)\b/i,  // known tax software brands
+  /\btax\s+(clinic|volunteer|help)\b/i,                    // community tax help programs
+];
+
+/**
+ * Common CRA-related terms that should NOT be the sole basis for semantic similarity matching
+ * If these are the only shared significant words between a query and seed phrase, skip the match
+ */
+const CRA_CONTEXT_WORDS = new Set([
+  'cra', 'canada', 'revenue', 'agency', 'tax', 'taxes', 'government', 'federal',
+  'canada revenue agency', 'canada revenue',
+]);
+
 @Injectable()
 export class EmergingThreatService {
   private readonly logger = new Logger(EmergingThreatService.name);
@@ -106,7 +127,14 @@ export class EmergingThreatService {
 
         // STEP 1: Pre-filter terms that are worth analyzing
         // Focus on NEW terms and GROWING terms (not all 25k+ queries)
+        // Also exclude terms already added to the scam keywords list
         const candidateTerms = comparison.terms.filter(term => {
+          // CRITICAL: Skip terms that have already been added as scam keywords
+          // These should NEVER appear in emerging threats again
+          if (this.scamDetectionService.isExactKeywordMatch(term.query)) {
+            return false;
+          }
+
           // Include if: new term with decent impressions
           if (term.isNew && term.current.impressions >= 20) return true;
 
@@ -254,6 +282,41 @@ export class EmergingThreatService {
   }
 
   /**
+   * Check if a query matches legitimate patterns that should not be flagged
+   */
+  private isLegitimateQuery(query: string): boolean {
+    return LEGITIMATE_QUERY_PATTERNS.some(pattern => pattern.test(query));
+  }
+
+  /**
+   * Check if an embedding match is based only on CRA context words
+   * If the query and matched phrase share only common CRA-related terms (cra, tax, canada, etc.),
+   * the match is likely spurious and should be skipped
+   */
+  private isOnlyCraContextMatch(query: string, matchedPhrase: string): boolean {
+    const queryWords = new Set(
+      query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    );
+    const phraseWords = new Set(
+      matchedPhrase.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    );
+
+    // Find shared words between query and matched phrase
+    const sharedWords = [...queryWords].filter(w => phraseWords.has(w));
+
+    // If no shared words, the match is purely semantic - allow it
+    if (sharedWords.length === 0) {
+      return false;
+    }
+
+    // Check if ALL shared words are just CRA context words
+    const nonContextSharedWords = sharedWords.filter(w => !CRA_CONTEXT_WORDS.has(w));
+
+    // If there are no non-context shared words, this match is only based on CRA context
+    return nonContextSharedWords.length === 0;
+  }
+
+  /**
    * Analyze a single term for threat indicators
    * @param embeddingMatch Optional embedding match result from batch analysis
    * @param days Number of days in the comparison period (for velocity calculation)
@@ -269,8 +332,20 @@ export class EmergingThreatService {
   ): EmergingThreat | null {
     const query = term.query.toLowerCase();
 
+    // Skip queries that match legitimate patterns (e.g., "free tax software")
+    if (this.isLegitimateQuery(query)) {
+      return null;
+    }
+
     // Note: Semantic zone filtering is done in batch before this method is called
     // No need for redundant whitelist checks here
+
+    // Filter out embedding matches that are only based on CRA context words
+    // e.g., "cra my account" matching "cra gift card" just because both have "cra"
+    let filteredEmbeddingMatch = embeddingMatch;
+    if (embeddingMatch && this.isOnlyCraContextMatch(query, embeddingMatch.matchedPhrase)) {
+      filteredEmbeddingMatch = undefined;
+    }
 
     // Calculate CTR anomaly using dynamic benchmarks
     const ctrAnomaly = this.calculateCTRAnomaly(
@@ -283,15 +358,15 @@ export class EmergingThreatService {
     const matchedPatterns = this.checkDynamicPatterns(query);
 
     // Find similar known scam terms (uses embedding if available, falls back to string similarity)
-    const similarScams = embeddingMatch
-      ? [`${embeddingMatch.matchedPhrase} (${Math.round(embeddingMatch.similarity * 100)}% semantic match)`]
+    const similarScams = filteredEmbeddingMatch
+      ? [`${filteredEmbeddingMatch.matchedPhrase} (${Math.round(filteredEmbeddingMatch.similarity * 100)}% semantic match)`]
       : this.findSimilarScams(query);
 
     // Calculate velocity metrics
     const velocity = this.calculateVelocity(term, days);
 
     // Calculate composite risk score (now includes velocity)
-    const riskScore = this.calculateRiskScore(term, ctrAnomaly, matchedPatterns, similarScams, embeddingMatch, velocity);
+    const riskScore = this.calculateRiskScore(term, ctrAnomaly, matchedPatterns, similarScams, filteredEmbeddingMatch, velocity);
 
     // Determine risk level
     const riskLevel = this.getRiskLevel(riskScore);
@@ -300,7 +375,7 @@ export class EmergingThreatService {
     // CTR anomaly alone is NOT enough - irrelevant queries (e.g., "stat holidays ontario 2025")
     // naturally have low CTR when they show CRA pages because users don't want CRA results.
     // We must have evidence the query is SCAM-RELATED, not just that CTR is low.
-    const hasScamSignal = embeddingMatch || matchedPatterns.length > 0 || similarScams.length > 0;
+    const hasScamSignal = filteredEmbeddingMatch || matchedPatterns.length > 0 || similarScams.length > 0;
 
     if (!hasScamSignal) {
       // No scam indicators at all - this query is not related to scams
