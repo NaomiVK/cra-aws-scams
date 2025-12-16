@@ -33,7 +33,7 @@ import * as stringSimilarity from 'string-similarity';
 const DYNAMIC_PATTERNS = {
   dollarAmount: /\$\s*\d+(?:,\d{3})*(?:\.\d{2})?|\d+\s*(?:dollars?|bucks)/i,
   urgencyWords: /\b(urgent|immediate|immediately|act now|claim now|apply now|hurry|limited time|expires|last chance|final notice)\b/i,
-  freeMoneyPattern: /\b(free|bonus|extra|secret|hidden|unclaimed)\s+(money|cash|payment|benefit|refund|cheque|check)\b/i,
+  freeMoneyPattern: /\b(bonus|extra|secret|hidden)\s+(money|cash|payment|benefit|refund|cheque|check)\b/i,
 };
 
 @Injectable()
