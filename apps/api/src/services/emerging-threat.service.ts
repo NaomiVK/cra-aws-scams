@@ -357,10 +357,17 @@ export class EmergingThreatService {
     // Find matching dynamic patterns
     const matchedPatterns = this.checkDynamicPatterns(query);
 
-    // Find similar known scam terms (uses embedding if available, falls back to string similarity)
-    const similarScams = filteredEmbeddingMatch
-      ? [`${filteredEmbeddingMatch.matchedPhrase} (${Math.round(filteredEmbeddingMatch.similarity * 100)}% semantic match)`]
-      : this.findSimilarScams(query);
+    // Find similar known scam terms using embeddings
+    // Only fall back to string similarity if embedding service is NOT available
+    let similarScams: string[] = [];
+    if (filteredEmbeddingMatch) {
+      // Embedding match found - use it
+      similarScams = [`${filteredEmbeddingMatch.matchedPhrase} (${Math.round(filteredEmbeddingMatch.similarity * 100)}% semantic match)`];
+    } else if (!this.embeddingService.isReady()) {
+      // Embedding service not available - fall back to string similarity
+      similarScams = this.findSimilarScams(query);
+    }
+    // If embedding service IS ready but no match found, similarScams stays empty (no fallback)
 
     // Calculate velocity metrics
     const velocity = this.calculateVelocity(term, days);

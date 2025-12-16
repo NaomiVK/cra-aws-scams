@@ -31,6 +31,18 @@ type QueryEmbeddingResult = {
   isScamRelated: boolean;
 };
 
+/**
+ * Severity mapping for keyword categories
+ * Used to derive severity from category name when loading from DynamoDB
+ */
+const CATEGORY_SEVERITY_MAP: Record<string, string> = {
+  fakeExpiredBenefits: 'critical',
+  illegitimatePaymentMethods: 'critical',
+  threatLanguage: 'high',
+  suspiciousModifiers: 'medium',
+  scamPatterns: 'high',
+};
+
 @Injectable()
 export class EmbeddingService implements OnModuleInit {
   private readonly logger = new Logger(EmbeddingService.name);
@@ -74,6 +86,19 @@ export class EmbeddingService implements OnModuleInit {
   }
 
   /**
+   * Derive severity from category name
+   * Handles both "keyword:categoryName" and "categoryName" formats
+   */
+  private deriveSeverityFromCategory(category: string): string {
+    // Strip "keyword:" prefix if present
+    const baseCategory = category.startsWith('keyword:')
+      ? category.replace('keyword:', '')
+      : category;
+
+    return CATEGORY_SEVERITY_MAP[baseCategory] || 'medium';
+  }
+
+  /**
    * Load seed phrases from DynamoDB and merge with local config
    */
   private async loadSeedPhrasesFromDynamoDB(): Promise<void> {
@@ -90,10 +115,13 @@ export class EmbeddingService implements OnModuleInit {
       for (const record of dynamoPhrases) {
         const exists = this.seedPhrases.some(p => p.text === record.term);
         if (!exists) {
+          // Derive severity from category name (handles both old and new formats)
+          const severity = this.deriveSeverityFromCategory(record.category);
+
           this.seedPhrases.push({
             text: record.term,
             category: record.category,
-            severity: record.severity,
+            severity,
           });
           addedCount++;
         }
@@ -314,7 +342,8 @@ export class EmbeddingService implements OnModuleInit {
 
   /**
    * Add a new seed phrase to the embedding comparison set
-   * Persists to DynamoDB and recomputes embeddings
+   * Updates in-memory cache and recomputes embeddings
+   * Note: DynamoDB persistence is handled by scamDetectionService.addKeyword()
    */
   async addSeedPhrase(term: string, category: string, severity: string): Promise<void> {
     const normalizedTerm = term.toLowerCase().trim();
@@ -331,9 +360,6 @@ export class EmbeddingService implements OnModuleInit {
       category,
       severity,
     });
-
-    // Persist to DynamoDB
-    await this.dynamoDbService.addSeedPhrase(normalizedTerm, category, severity);
 
     // Invalidate embedding cache
     this.cacheService.del('seed-embeddings-v1');
