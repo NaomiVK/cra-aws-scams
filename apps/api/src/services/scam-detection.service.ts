@@ -15,11 +15,19 @@ import { environment } from '../environments/environment';
 import * as scamKeywordsJson from '../config/scam-keywords.json';
 import { v4 as uuidv4 } from 'uuid';
 
+// Seed phrase for matching
+type SeedPhraseMatch = {
+  term: string;
+  category: string;
+  severity: string;
+};
+
 @Injectable()
 export class ScamDetectionService implements OnModuleInit {
   private readonly logger = new Logger(ScamDetectionService.name);
   private keywordsConfig: ScamKeywordsConfig;
   private seenTerms: Map<string, string> = new Map(); // query -> firstSeen ISO date
+  private allSeedPhrases: SeedPhraseMatch[] = []; // All DynamoDB seed phrases (except whitelist/seen-term)
 
   constructor(
     private readonly cacheService: CacheService,
@@ -132,6 +140,16 @@ export class ScamDetectionService implements OnModuleInit {
       // Load seen flagged terms (for new vs returning tracking)
       this.seenTerms = await this.dynamoDbService.getSeenTerms();
       this.logger.log(`[STARTUP] Loaded ${this.seenTerms.size} previously seen flagged terms`);
+
+      // Load ALL seed phrases from DynamoDB (excludes whitelist and seen-term)
+      // These are used for Dashboard detection in addition to keyword categories
+      const dbSeedPhrases = await this.dynamoDbService.getAllSeedPhrases();
+      this.allSeedPhrases = dbSeedPhrases.map(record => ({
+        term: record.term.toLowerCase(),
+        category: record.category,
+        severity: record.severity,
+      }));
+      this.logger.log(`[STARTUP] Loaded ${this.allSeedPhrases.length} seed phrases for Dashboard matching`);
 
     } catch (error) {
       this.logger.warn(`[STARTUP] Failed to load from DynamoDB: ${error.message}`);
@@ -266,14 +284,10 @@ export class ScamDetectionService implements OnModuleInit {
 
   /**
    * Analyze a single query for scam patterns
+   * Note: No whitelist filtering - Dashboard only checks against known scam keywords
    */
   private analyzeQuery(row: SearchAnalyticsRow): FlaggedTerm | null {
     const query = row.keys[0]?.toLowerCase() || '';
-
-    // Check whitelist first
-    if (this.isWhitelisted(query)) {
-      return null;
-    }
 
     const matchedPatterns: string[] = [];
     let matchedCategory = '';
@@ -314,6 +328,16 @@ export class ScamDetectionService implements OnModuleInit {
       if (!matchedCategory) {
         matchedCategory = 'Suspicious Modifiers';
         severity = 'medium';
+      }
+    }
+
+    // Check against ALL DynamoDB seed phrases (excludes whitelist and seen-term)
+    const seedPhraseMatch = this.checkSeedPhrases(query);
+    if (seedPhraseMatch.matched) {
+      matchedPatterns.push(...seedPhraseMatch.patterns);
+      if (!matchedCategory) {
+        matchedCategory = seedPhraseMatch.category;
+        severity = this.mapSeverity(seedPhraseMatch.severity);
       }
     }
 
@@ -477,6 +501,38 @@ export class ScamDetectionService implements OnModuleInit {
     }
 
     return { matched: matched.length > 0, patterns: matched };
+  }
+
+  /**
+   * Check against all DynamoDB seed phrases (excludes whitelist and seen-term)
+   */
+  private checkSeedPhrases(
+    query: string
+  ): { matched: boolean; patterns: string[]; category: string; severity: string } {
+    const matched: string[] = [];
+    let category = '';
+    let severity = 'medium';
+
+    for (const seedPhrase of this.allSeedPhrases) {
+      if (query.includes(seedPhrase.term)) {
+        matched.push(seedPhrase.term);
+        if (!category) {
+          category = seedPhrase.category;
+          severity = seedPhrase.severity;
+        }
+      }
+    }
+
+    return { matched: matched.length > 0, patterns: matched, category, severity };
+  }
+
+  /**
+   * Map severity string to Severity type
+   */
+  private mapSeverity(severityStr: string): Severity {
+    const validSeverities: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
+    const normalized = severityStr.toLowerCase() as Severity;
+    return validSeverities.includes(normalized) ? normalized : 'medium';
   }
 
   /**
