@@ -192,13 +192,6 @@ export class ApiService {
     );
   }
 
-  addWhitelist(pattern: string): Observable<ApiResponse<{ message: string }>> {
-    return this.http.post<ApiResponse<{ message: string }>>(
-      `${this.baseUrl}/scams/whitelist`,
-      { pattern }
-    );
-  }
-
   dismissThreat(id: string): Observable<ApiResponse<{ message: string }>> {
     return this.http.post<ApiResponse<{ message: string }>>(
       `${this.baseUrl}/scams/emerging/${id}/dismiss`,

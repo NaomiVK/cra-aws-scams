@@ -7,4 +7,3 @@ export * from './emerging-threat.service';
 export * from './embedding.service';
 export * from './aws-config.service';
 export * from './dynamodb.service';
-export * from './signal-convergence.service';

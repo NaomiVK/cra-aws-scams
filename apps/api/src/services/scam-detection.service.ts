@@ -69,7 +69,7 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   /**
-   * Load keywords and whitelist from DynamoDB and merge with JSON config
+   * Load keywords from DynamoDB and merge with JSON config
    */
   private async loadFromDynamoDB(): Promise<void> {
     try {
@@ -78,7 +78,6 @@ export class ScamDetectionService implements OnModuleInit {
       for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
         this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
       }
-      this.logger.log(`  - whitelist: ${this.keywordsConfig.whitelist.patterns.length} patterns`);
 
       // Load keywords from DynamoDB
       const dbKeywords = await this.dynamoDbService.getAllKeywords();
@@ -109,33 +108,11 @@ export class ScamDetectionService implements OnModuleInit {
         this.logger.log(`[STARTUP] No new keywords to merge from DynamoDB`);
       }
 
-      // Load whitelist from DynamoDB
-      const dbWhitelist = await this.dynamoDbService.getAllWhitelist();
-      this.logger.log(`[STARTUP] Found ${dbWhitelist.length} whitelist records in DynamoDB`);
-
-      let whitelistAdded = 0;
-      const addedWhitelist: string[] = [];
-
-      for (const record of dbWhitelist) {
-        if (!this.keywordsConfig.whitelist.patterns.includes(record.term)) {
-          this.keywordsConfig.whitelist.patterns.push(record.term);
-          whitelistAdded++;
-          addedWhitelist.push(record.term);
-        }
-      }
-
-      if (whitelistAdded > 0) {
-        this.logger.log(`[STARTUP] Merged ${whitelistAdded} whitelist patterns from DynamoDB: ${addedWhitelist.slice(0, 5).join(', ')}${addedWhitelist.length > 5 ? '...' : ''}`);
-      } else {
-        this.logger.log(`[STARTUP] No new whitelist patterns to merge from DynamoDB`);
-      }
-
       // Log final state
       this.logger.log(`[STARTUP] Final keyword counts after DynamoDB merge:`);
       for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
         this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
       }
-      this.logger.log(`  - whitelist: ${this.keywordsConfig.whitelist.patterns.length} patterns`);
 
       // Load seen flagged terms (for new vs returning tracking)
       this.seenTerms = await this.dynamoDbService.getSeenTerms();
@@ -169,12 +146,7 @@ export class ScamDetectionService implements OnModuleInit {
           `[DETECT] Running scam detection for ${dateRange.startDate} to ${dateRange.endDate}`
         );
 
-        // Log current keyword counts being used for detection
-        this.logger.log(`[DETECT] Current keyword counts in memory:`);
-        for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
-          this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
-        }
-        this.logger.log(`  - whitelist: ${this.keywordsConfig.whitelist.patterns.length} patterns`);
+        this.logger.log(`[DETECT] Using ${this.allSeedPhrases.length} seed phrases from DynamoDB`);
 
         // Get search analytics data
         const analyticsData =
@@ -284,67 +256,18 @@ export class ScamDetectionService implements OnModuleInit {
 
   /**
    * Analyze a single query for scam patterns
-   * Note: No whitelist filtering - Dashboard only checks against known scam keywords
+   * Only checks against DynamoDB seed phrases - no static JSON pattern matching
    */
   private analyzeQuery(row: SearchAnalyticsRow): FlaggedTerm | null {
     const query = row.keys[0]?.toLowerCase() || '';
 
-    const matchedPatterns: string[] = [];
-    let matchedCategory = '';
-    let severity: Severity = 'info';
-
-    // Check fake/expired benefits (standalone terms)
-    const fakeMatch = this.checkFakeExpiredBenefits(query);
-    if (fakeMatch.matched) {
-      matchedPatterns.push(...fakeMatch.patterns);
-      matchedCategory = 'Fake/Expired Benefits';
-      severity = 'critical';
-    }
-
-    // Check illegitimate payment methods (contextual - must contain CRA reference)
-    const paymentMatch = this.checkIllegitimatePaymentMethods(query);
-    if (paymentMatch.matched) {
-      matchedPatterns.push(...paymentMatch.patterns);
-      if (!matchedCategory) {
-        matchedCategory = 'Illegitimate Payment Methods';
-        severity = 'critical';
-      }
-    }
-
-    // Check threat language (contextual - must contain CRA reference)
-    const threatMatch = this.checkThreatLanguage(query);
-    if (threatMatch.matched) {
-      matchedPatterns.push(...threatMatch.patterns);
-      if (!matchedCategory) {
-        matchedCategory = 'Threat Language';
-        severity = 'high';
-      }
-    }
-
-    // Check suspicious modifiers
-    const modifierMatch = this.checkSuspiciousModifiers(query);
-    if (modifierMatch.matched) {
-      matchedPatterns.push(...modifierMatch.patterns);
-      if (!matchedCategory) {
-        matchedCategory = 'Suspicious Modifiers';
-        severity = 'medium';
-      }
-    }
-
-    // Check against ALL DynamoDB seed phrases (excludes whitelist and seen-term)
+    // Only check against DynamoDB seed phrases
     const seedPhraseMatch = this.checkSeedPhrases(query);
-    if (seedPhraseMatch.matched) {
-      matchedPatterns.push(...seedPhraseMatch.patterns);
-      if (!matchedCategory) {
-        matchedCategory = seedPhraseMatch.category;
-        severity = this.mapSeverity(seedPhraseMatch.severity);
-      }
-    }
-
-    // If no patterns matched, not flagged
-    if (matchedPatterns.length === 0) {
+    if (!seedPhraseMatch.matched) {
       return null;
     }
+
+    let severity = this.mapSeverity(seedPhraseMatch.severity);
 
     // Apply seasonal multiplier (could upgrade severity)
     severity = this.applySeasonalAdjustment(severity);
@@ -357,150 +280,12 @@ export class ScamDetectionService implements OnModuleInit {
       ctr: row.ctr,
       position: row.position,
       severity,
-      matchedCategory,
-      matchedPatterns,
+      matchedCategory: seedPhraseMatch.category,
+      matchedPatterns: seedPhraseMatch.patterns,
       firstDetected: new Date().toISOString(),
       lastSeen: new Date().toISOString(),
       status: 'new',
     };
-  }
-
-  /**
-   * Check if query is whitelisted (legitimate search)
-   * Uses regex pattern matching
-   */
-  isWhitelisted(query: string): boolean {
-    const whitelist = this.keywordsConfig.whitelist.patterns;
-    return whitelist.some((pattern) => {
-      // Escape special regex characters in the pattern
-      const escapedPattern = pattern.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Use word boundary matching for better accuracy
-      const regex = new RegExp(`\\b${escapedPattern}\\b`, 'i');
-      return regex.test(query);
-    });
-  }
-
-  /**
-   * Check if query exactly matches a whitelisted term
-   * Used for filtering emerging threats that have been explicitly whitelisted
-   */
-  isExactWhitelistMatch(query: string): boolean {
-    const normalizedQuery = query.toLowerCase().trim();
-    return this.keywordsConfig.whitelist.patterns.some(
-      (pattern) => pattern.toLowerCase().trim() === normalizedQuery
-    );
-  }
-
-  /**
-   * Check if query exactly matches an existing keyword in any category
-   * Used for filtering emerging threats that have already been added as keywords
-   * (Config is synced with DynamoDB on startup and on every add)
-   */
-  isExactKeywordMatch(query: string): boolean {
-    const normalizedQuery = query.toLowerCase().trim();
-    const categories = this.keywordsConfig.categories;
-
-    for (const categoryKey of Object.keys(categories)) {
-      const category = categories[categoryKey as keyof typeof categories];
-      if (category.terms.some((term) => term.toLowerCase().trim() === normalizedQuery)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Check for fake/expired benefit terms
-   */
-  private checkFakeExpiredBenefits(
-    query: string
-  ): { matched: boolean; patterns: string[] } {
-    const category = this.keywordsConfig.categories.fakeExpiredBenefits;
-    const matched: string[] = [];
-
-    for (const term of category.terms) {
-      if (query.includes(term.toLowerCase())) {
-        matched.push(term);
-      }
-    }
-
-    return { matched: matched.length > 0, patterns: matched };
-  }
-
-  /**
-   * Check for illegitimate payment methods (contextual)
-   */
-  private checkIllegitimatePaymentMethods(
-    query: string
-  ): { matched: boolean; patterns: string[] } {
-    const category = this.keywordsConfig.categories.illegitimatePaymentMethods;
-    const mustContain = category.mustContain || [];
-
-    // Check if query contains CRA context
-    const hasCraContext = mustContain.some((ctx) =>
-      query.includes(ctx.toLowerCase())
-    );
-
-    if (!hasCraContext) {
-      return { matched: false, patterns: [] };
-    }
-
-    // Check for payment method terms
-    const matched: string[] = [];
-    for (const term of category.terms) {
-      if (query.includes(term.toLowerCase())) {
-        matched.push(`CRA + ${term}`);
-      }
-    }
-
-    return { matched: matched.length > 0, patterns: matched };
-  }
-
-  /**
-   * Check for threat language (contextual)
-   */
-  private checkThreatLanguage(
-    query: string
-  ): { matched: boolean; patterns: string[] } {
-    const category = this.keywordsConfig.categories.threatLanguage;
-    const mustContain = category.mustContain || [];
-
-    // Check if query contains CRA context
-    const hasCraContext = mustContain.some((ctx) =>
-      query.includes(ctx.toLowerCase())
-    );
-
-    if (!hasCraContext) {
-      return { matched: false, patterns: [] };
-    }
-
-    // Check for threat terms
-    const matched: string[] = [];
-    for (const term of category.terms) {
-      if (query.includes(term.toLowerCase())) {
-        matched.push(`CRA + ${term}`);
-      }
-    }
-
-    return { matched: matched.length > 0, patterns: matched };
-  }
-
-  /**
-   * Check for suspicious modifiers
-   */
-  private checkSuspiciousModifiers(
-    query: string
-  ): { matched: boolean; patterns: string[] } {
-    const category = this.keywordsConfig.categories.suspiciousModifiers;
-    const matched: string[] = [];
-
-    for (const term of category.terms) {
-      if (query.includes(term.toLowerCase())) {
-        matched.push(term);
-      }
-    }
-
-    return { matched: matched.length > 0, patterns: matched };
   }
 
   /**
@@ -616,31 +401,6 @@ export class ScamDetectionService implements OnModuleInit {
       }
     } else {
       this.logger.warn(`[ADD_KEYWORD] Category "${category}" not found in config`);
-    }
-  }
-
-  async addWhitelistPattern(pattern: string): Promise<void> {
-    this.logger.log(`[ADD_WHITELIST] Request to add "${pattern}" to whitelist`);
-
-    const patterns = this.keywordsConfig.whitelist.patterns;
-    const patternLower = pattern.toLowerCase();
-
-    if (!patterns.includes(patternLower)) {
-      const countBefore = patterns.length;
-      patterns.push(patternLower);
-      this.logger.log(`[ADD_WHITELIST] Added "${patternLower}" to in-memory config (whitelist: ${countBefore} → ${patterns.length} patterns)`);
-
-      this.logger.log(`[ADD_WHITELIST] Flushing cache...`);
-      this.cacheService.flush();
-
-      // Persist to DynamoDB
-      this.logger.log(`[ADD_WHITELIST] Persisting to DynamoDB...`);
-      const dbSuccess = await this.dynamoDbService.addWhitelist(pattern);
-      this.logger.log(`[ADD_WHITELIST] DynamoDB persist: ${dbSuccess ? 'SUCCESS' : 'FAILED'}`);
-
-      this.logger.log(`[ADD_WHITELIST] Complete. "${patternLower}" is now active in whitelist`);
-    } else {
-      this.logger.log(`[ADD_WHITELIST] Pattern "${patternLower}" already exists in whitelist, skipping`);
     }
   }
 }

@@ -73,10 +73,6 @@ export type ScamKeywordsConfig = {
     threatLanguage: KeywordCategory;
     suspiciousModifiers: KeywordCategory;
   };
-  whitelist: {
-    description: string;
-    patterns: string[];
-  };
   seasonalMultipliers: {
     taxSeason: {
       startMonth: number;
@@ -231,7 +227,7 @@ export type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
 /**
  * Status for emerging threat review workflow
  */
-export type EmergingThreatStatus = 'pending' | 'added' | 'whitelisted' | 'dismissed';
+export type EmergingThreatStatus = 'pending' | 'added' | 'dismissed';
 
 /**
  * Velocity metrics for emerging threat detection
@@ -340,13 +336,6 @@ export type EmergingThreatsResponse = {
 export type AddKeywordRequest = {
   term: string;
   category: 'fakeExpiredBenefits' | 'illegitimatePaymentMethods' | 'threatLanguage' | 'suspiciousModifiers';
-};
-
-/**
- * Request to add a pattern to whitelist
- */
-export type AddWhitelistRequest = {
-  pattern: string;
 };
 
 /**
@@ -508,7 +497,6 @@ export type ExcludedTermsResponse = {
     exemplarCount: number;
     description: string;
   }>;
-  whitelistPatterns: string[];
 };
 
 // ============================================================================

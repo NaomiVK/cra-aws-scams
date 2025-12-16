@@ -47,7 +47,7 @@ export class AdminComponent implements OnInit {
 
   // Bulk selection
   selectedThreats = signal<Set<string>>(new Set());
-  bulkModalAction = signal<'keyword' | 'whitelist' | null>(null);
+  bulkModalAction = signal<'keyword' | null>(null);
 
   ngOnInit(): void {
     this.loadEmergingThreats();
@@ -311,7 +311,6 @@ export class AdminComponent implements OnInit {
       version: config.version || '1.0.0',
       lastUpdated: new Date().toISOString(),
       categories: config.categories,
-      whitelist: config.whitelist,
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
