@@ -195,8 +195,12 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <span class="badge bg-primary">{{ term.current.impressions | number }} imp</span>
-                  @if (isTermAdded(term.query)) {
-                    <span class="badge bg-success"><i class="bi bi-check"></i> Added</span>
+                  @if (isExistingSeedPhrase(term.query)) {
+                    <span class="text-light" ngbTooltip="Already in seed phrases">
+                      <i class="bi bi-check-circle-fill"></i>
+                    </span>
+                  } @else if (isTermAdded(term.query)) {
+                    <span class="badge bg-light text-success"><i class="bi bi-check"></i> Added</span>
                   } @else {
                     <button class="btn btn-sm btn-outline-light"
                       (click)="openAddModal(term.query)"
@@ -311,7 +315,11 @@
                   {{ formatChange(term.change.impressionsPercent) }}
                 </td>
                 <td class="text-center">
-                  @if (isTermAdded(term.query)) {
+                  @if (isExistingSeedPhrase(term.query)) {
+                    <span class="text-success" ngbTooltip="Already in seed phrases">
+                      <i class="bi bi-check-circle-fill"></i>
+                    </span>
+                  } @else if (isTermAdded(term.query)) {
                     <span class="badge bg-success"><i class="bi bi-check"></i> Added</span>
                   } @else {
                     <button class="btn btn-sm btn-outline-primary"

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { NgbDatepickerModule, NgbDate, NgbCalendar, NgbModal, NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../services/api.service';
-import { ComparisonResponse, DateRange, TermComparison } from '@cra-scam-detection/shared-types';
+import { ComparisonResponse, DateRange, TermComparison, ScamKeywordsConfig } from '@cra-scam-detection/shared-types';
 
 type SortColumn = 'query' | 'currentImpressions' | 'previousImpressions' | 'change';
 type SortDirection = 'asc' | 'desc';
@@ -64,6 +64,7 @@ export class ComparisonComponent implements OnInit {
   selectedCategory = signal<CategoryKey>('fakeExpiredBenefits');
   addedTerms = signal<Set<string>>(new Set());
   addingTerm = signal(false);
+  existingSeedPhrases = signal<Set<string>>(new Set());
 
   // Computed filtered and sorted terms
   filteredTrendingTerms = computed(() => {
@@ -112,7 +113,26 @@ export class ComparisonComponent implements OnInit {
 
   ngOnInit(): void {
     this.initializeDatePickers();
+    this.loadSeedPhrases();
     this.loadComparison();
+  }
+
+  async loadSeedPhrases(): Promise<void> {
+    try {
+      const response = await firstValueFrom(this.api.getKeywordsConfig());
+      if (response?.success && response.data?.categories) {
+        const allTerms = new Set<string>();
+        const categories = response.data.categories as ScamKeywordsConfig['categories'];
+        for (const category of Object.values(categories)) {
+          for (const term of category.terms) {
+            allTerms.add(term.toLowerCase());
+          }
+        }
+        this.existingSeedPhrases.set(allTerms);
+      }
+    } catch (err) {
+      console.error('Failed to load keywords config:', err);
+    }
   }
 
   initializeDatePickers(): void {
@@ -320,6 +340,15 @@ export class ComparisonComponent implements OnInit {
 
   isTermAdded(term: string): boolean {
     return this.addedTerms().has(term.toLowerCase());
+  }
+
+  isExistingSeedPhrase(term: string): boolean {
+    return this.existingSeedPhrases().has(term.toLowerCase());
+  }
+
+  canAddTerm(term: string): boolean {
+    const normalized = term.toLowerCase();
+    return !this.existingSeedPhrases().has(normalized) && !this.addedTerms().has(normalized);
   }
 
   getCategoryLabel(category: CategoryKey): string {
