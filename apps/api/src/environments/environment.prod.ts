@@ -19,7 +19,7 @@ export const environment = {
   // Search Console Query Limits
   searchConsole: {
     maxRows: 5000,
-    minImpressions: 100,
+    minImpressions: 300,
     maxDateRangeDays: 90,
   },
 
@@ -27,7 +27,7 @@ export const environment = {
   scamDetection: {
     impressionThreshold: process.env['IMPRESSION_THRESHOLD']
       ? parseInt(process.env['IMPRESSION_THRESHOLD'], 10)
-      : 500,
+      : 300,
     defaultDateRangeDays: 28,
   },
 

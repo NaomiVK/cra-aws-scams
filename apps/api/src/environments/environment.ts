@@ -19,13 +19,13 @@ export const environment = {
   // Search Console Query Limits
   searchConsole: {
     maxRows: 1000, // Maximum rows per query
-    minImpressions: 100, // Minimum impressions filter
+    minImpressions: 300, // Minimum impressions filter
     maxDateRangeDays: 90, // Maximum date range
   },
 
   // Scam Detection Settings
   scamDetection: {
-    impressionThreshold: 100, // Minimum impressions to flag
+    impressionThreshold: 300, // Minimum impressions to flag
     defaultDateRangeDays: 7, // Default analysis period
   },
 
