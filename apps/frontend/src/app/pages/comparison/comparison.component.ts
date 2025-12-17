@@ -1,13 +1,14 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NgbDatepickerModule, NgbDate, NgbCalendar } from '@ng-bootstrap/ng-bootstrap';
+import { NgbDatepickerModule, NgbDate, NgbCalendar, NgbModal, NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { ComparisonResponse, DateRange, TermComparison } from '@cra-scam-detection/shared-types';
 
 type SortColumn = 'query' | 'currentImpressions' | 'previousImpressions' | 'change';
 type SortDirection = 'asc' | 'desc';
+type CategoryKey = 'fakeExpiredBenefits' | 'illegitimatePaymentMethods' | 'threatLanguage' | 'suspiciousModifiers';
 
 type ComparisonPreset = {
   label: string;
@@ -18,13 +19,16 @@ type ComparisonPreset = {
 @Component({
   selector: 'app-comparison',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgbDatepickerModule],
+  imports: [CommonModule, FormsModule, NgbDatepickerModule, NgbTooltipModule],
   templateUrl: './comparison.component.html',
   styleUrl: './comparison.component.scss',
 })
 export class ComparisonComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly calendar = inject(NgbCalendar);
+  private readonly modalService = inject(NgbModal);
+
+  @ViewChild('addKeywordModal') addKeywordModal!: TemplateRef<unknown>;
 
   loading = signal(true);
   error = signal<string | null>(null);
@@ -49,18 +53,25 @@ export class ComparisonComponent implements OnInit {
   queryFilter = signal<string>('');
   sortColumn = signal<SortColumn>('change');
   sortDirection = signal<SortDirection>('desc');
-  minChangeFilter = signal<number>(0);
+  minChangeFilter = signal<number>(20);
 
   // New/Dropped terms sort order
   newTermsSort = signal<'desc' | 'asc'>('desc');
   droppedTermsSort = signal<'desc' | 'asc'>('desc');
+
+  // Add to seed phrases modal state
+  pendingTerm = signal<string>('');
+  selectedCategory = signal<CategoryKey>('fakeExpiredBenefits');
+  addedTerms = signal<Set<string>>(new Set());
+  addingTerm = signal(false);
 
   // Computed filtered and sorted terms
   filteredTrendingTerms = computed(() => {
     const data = this.comparisonData();
     if (!data) return [];
 
-    let terms = data.terms.filter(t => !t.isNew && !t.isGone);
+    // Filter: existing terms (not new, not gone) with 300+ current impressions
+    let terms = data.terms.filter(t => !t.isNew && !t.isGone && t.current.impressions >= 300);
 
     // Apply query filter
     const queryFilterValue = this.queryFilter().toLowerCase().trim();
@@ -68,7 +79,7 @@ export class ComparisonComponent implements OnInit {
       terms = terms.filter(t => t.query.toLowerCase().includes(queryFilterValue));
     }
 
-    // Apply minimum change filter
+    // Apply minimum change filter (default 20%)
     const minChange = this.minChangeFilter();
     if (minChange > 0) {
       terms = terms.filter(t => Math.abs(t.change.impressionsPercent) >= minChange);
@@ -221,7 +232,7 @@ export class ComparisonComponent implements OnInit {
     if (!data) return [];
     const sortOrder = this.newTermsSort();
     return data.terms
-      .filter(t => t.isNew)
+      .filter(t => t.isNew && t.current.impressions >= 300)
       .sort((a, b) => sortOrder === 'desc'
         ? b.current.impressions - a.current.impressions
         : a.current.impressions - b.current.impressions);
@@ -232,7 +243,7 @@ export class ComparisonComponent implements OnInit {
     if (!data) return [];
     const sortOrder = this.droppedTermsSort();
     return data.terms
-      .filter(t => t.isGone)
+      .filter(t => t.isGone && t.previous.impressions >= 300)
       .sort((a, b) => sortOrder === 'desc'
         ? b.previous.impressions - a.previous.impressions
         : a.previous.impressions - b.previous.impressions);
@@ -271,5 +282,53 @@ export class ComparisonComponent implements OnInit {
     const month = date.month.toString().padStart(2, '0');
     const day = date.day.toString().padStart(2, '0');
     return `${date.year}-${month}-${day}`;
+  }
+
+  // Add to seed phrases functionality
+  openAddModal(term: string): void {
+    this.pendingTerm.set(term);
+    this.selectedCategory.set('fakeExpiredBenefits');
+    this.modalService.open(this.addKeywordModal, { centered: true });
+  }
+
+  confirmAddKeyword(): void {
+    const term = this.pendingTerm();
+    const category = this.selectedCategory();
+
+    if (!term) return;
+
+    this.addingTerm.set(true);
+    this.api.addKeyword(term, category).subscribe({
+      next: (response) => {
+        if (response?.success) {
+          // Track that this term was added
+          const updated = new Set(this.addedTerms());
+          updated.add(term.toLowerCase());
+          this.addedTerms.set(updated);
+          this.modalService.dismissAll();
+        } else {
+          console.error('Failed to add keyword:', response?.error);
+        }
+        this.addingTerm.set(false);
+      },
+      error: (err) => {
+        console.error('Error adding keyword:', err);
+        this.addingTerm.set(false);
+      }
+    });
+  }
+
+  isTermAdded(term: string): boolean {
+    return this.addedTerms().has(term.toLowerCase());
+  }
+
+  getCategoryLabel(category: CategoryKey): string {
+    const labels: Record<CategoryKey, string> = {
+      fakeExpiredBenefits: 'Fake/Expired Benefits',
+      illegitimatePaymentMethods: 'Illegitimate Payment Methods',
+      threatLanguage: 'Threat Language',
+      suspiciousModifiers: 'Suspicious Modifiers'
+    };
+    return labels[category];
   }
 }
