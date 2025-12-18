@@ -348,15 +348,15 @@
 <ng-template #addKeywordModal let-modal>
   <div class="modal-header">
     <h5 class="modal-title">Add to Seed Phrases</h5>
-    <button type="button" class="btn-close" (click)="modal.dismiss()"></button>
+    <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
   <div class="modal-body">
     <div class="mb-3">
-      <label class="form-label fw-bold">Term</label>
+      <span class="form-label fw-bold d-block">Term</span>
       <div class="form-control bg-light">{{ pendingTerm() }}</div>
     </div>
     <div class="mb-3">
-      <label class="form-label fw-bold">Category</label>
+      <span class="form-label fw-bold d-block">Category</span>
       <div class="btn-group-vertical w-100" role="group">
         <button type="button" class="btn text-start"
           [class.btn-primary]="selectedCategory() === 'fakeExpiredBenefits'"
