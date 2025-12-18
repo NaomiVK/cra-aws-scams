@@ -26,9 +26,11 @@ export class DashboardComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly destroyRef = inject(DestroyRef);
 
-  // Loading state
+  // Loading states
   loading = signal(true);
+  loadingEmergingThreats = signal(false);
   error = signal<string | null>(null);
+  emergingThreatsError = signal<string | null>(null);
 
   // Dashboard data
   dashboardData = signal<DashboardData | null>(null);
@@ -49,15 +51,24 @@ export class DashboardComponent implements OnInit {
   }
 
   loadEmergingThreats(): void {
-    this.api.getEmergingThreats(7).pipe(
+    this.loadingEmergingThreats.set(true);
+    this.emergingThreatsError.set(null);
+
+    this.api.getEmergingThreats(this.selectedDays()).pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (res) => {
-        if (res.success) {
+        if (res.success && res.data) {
           this.emergingThreats.set(res.data);
+        } else {
+          this.emergingThreatsError.set(res.error || 'Failed to load emerging threats');
         }
+        this.loadingEmergingThreats.set(false);
       },
-      error: (err) => console.error('Failed to load emerging threats', err),
+      error: () => {
+        this.emergingThreatsError.set('Failed to connect to emerging threats API');
+        this.loadingEmergingThreats.set(false);
+      },
     });
   }
 
@@ -91,6 +102,7 @@ export class DashboardComponent implements OnInit {
     });
     this.selectedDays.set(days);
     this.loadDashboard();
+    this.loadEmergingThreats();
   }
 
   private getDefaultStartDate(): string {

@@ -135,6 +135,15 @@ export class ApiService {
   }
 
   /**
+   * Get seed phrases from DynamoDB for dropdown
+   */
+  getSeedPhrases(): Observable<ApiResponse<{ term: string; category: string }[]>> {
+    return this.http.get<ApiResponse<{ term: string; category: string }[]>>(
+      `${this.baseUrl}/scams/seed-phrases`
+    );
+  }
+
+  /**
    * Export data as JSON
    */
   exportJson(dateRange?: DateRange): Observable<ApiResponse<ExportData>> {

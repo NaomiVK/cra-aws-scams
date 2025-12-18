@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Body, Param, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, Param, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ScamDetectionService } from '../services/scam-detection.service';
 import { SearchConsoleService } from '../services/search-console.service';
 import { EmergingThreatService } from '../services/emerging-threat.service';
@@ -7,6 +7,21 @@ import {
   AddKeywordRequest,
 } from '@cra-scam-detection/shared-types';
 import { environment } from '../environments/environment';
+
+/**
+ * Parse and validate a numeric query parameter
+ */
+function parseIntParam(value: string | undefined, defaultValue: number, paramName: string): number {
+  if (!value) return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed < 1) {
+    throw new HttpException(
+      `Invalid ${paramName}: must be a positive integer`,
+      HttpStatus.BAD_REQUEST
+    );
+  }
+  return parsed;
+}
 
 @Controller('scams')
 export class ScamsController {
@@ -27,27 +42,31 @@ export class ScamsController {
     @Query('endDate') endDate?: string,
     @Query('days') days?: string
   ) {
-    let dateRange: DateRange;
+    try {
+      let dateRange: DateRange;
 
-    if (startDate && endDate) {
-      dateRange = { startDate, endDate };
-    } else {
-      const daysNum = days
-        ? parseInt(days, 10)
-        : environment.scamDetection.defaultDateRangeDays;
-      dateRange = SearchConsoleService.getDateRange(daysNum);
+      if (startDate && endDate) {
+        dateRange = { startDate, endDate };
+      } else {
+        const daysNum = parseIntParam(days, environment.scamDetection.defaultDateRangeDays, 'days');
+        dateRange = SearchConsoleService.getDateRange(daysNum);
+      }
+
+      this.logger.log(
+        `Running scam detection for ${dateRange.startDate} to ${dateRange.endDate}`
+      );
+
+      const result = await this.scamDetectionService.detectScams(dateRange);
+
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to detect scams: ${error}`);
+      throw new HttpException('Failed to run scam detection', HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
-    this.logger.log(
-      `Running scam detection for ${dateRange.startDate} to ${dateRange.endDate}`
-    );
-
-    const result = await this.scamDetectionService.detectScams(dateRange);
-
-    return {
-      success: true,
-      data: result,
-    };
   }
 
   /**
@@ -61,36 +80,40 @@ export class ScamsController {
     @Query('days') days?: string,
     @Query('severity') severity?: string
   ) {
-    let dateRange: DateRange;
+    try {
+      let dateRange: DateRange;
 
-    if (startDate && endDate) {
-      dateRange = { startDate, endDate };
-    } else {
-      const daysNum = days
-        ? parseInt(days, 10)
-        : environment.scamDetection.defaultDateRangeDays;
-      dateRange = SearchConsoleService.getDateRange(daysNum);
+      if (startDate && endDate) {
+        dateRange = { startDate, endDate };
+      } else {
+        const daysNum = parseIntParam(days, environment.scamDetection.defaultDateRangeDays, 'days');
+        dateRange = SearchConsoleService.getDateRange(daysNum);
+      }
+
+      const result = await this.scamDetectionService.detectScams(dateRange);
+
+      // Filter by severity if specified
+      let flaggedTerms = result.flaggedTerms;
+      if (severity) {
+        const severities = severity.split(',').map((s) => s.trim().toLowerCase());
+        flaggedTerms = flaggedTerms.filter((t) =>
+          severities.includes(t.severity)
+        );
+      }
+
+      return {
+        success: true,
+        data: {
+          period: result.period,
+          flaggedTerms,
+          summary: result.summary,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to get flagged terms: ${error}`);
+      throw new HttpException('Failed to get flagged terms', HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
-    const result = await this.scamDetectionService.detectScams(dateRange);
-
-    // Filter by severity if specified
-    let flaggedTerms = result.flaggedTerms;
-    if (severity) {
-      const severities = severity.split(',').map((s) => s.trim().toLowerCase());
-      flaggedTerms = flaggedTerms.filter((t) =>
-        severities.includes(t.severity)
-      );
-    }
-
-    return {
-      success: true,
-      data: {
-        period: result.period,
-        flaggedTerms,
-        summary: result.summary,
-      },
-    };
   }
 
   /**
@@ -99,12 +122,17 @@ export class ScamsController {
    */
   @Get('keywords')
   async getKeywordsConfig() {
-    const config = this.scamDetectionService.getKeywordsConfig();
+    try {
+      const config = this.scamDetectionService.getKeywordsConfig();
 
-    return {
-      success: true,
-      data: config,
-    };
+      return {
+        success: true,
+        data: config,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get keywords config: ${error}`);
+      throw new HttpException('Failed to get keywords configuration', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Get('dashboard')
@@ -113,32 +141,36 @@ export class ScamsController {
     @Query('endDate') endDate?: string,
     @Query('days') days?: string
   ) {
-    let dateRange: DateRange;
+    try {
+      let dateRange: DateRange;
 
-    if (startDate && endDate) {
-      dateRange = { startDate, endDate };
-    } else {
-      const daysNum = days
-        ? parseInt(days, 10)
-        : environment.scamDetection.defaultDateRangeDays;
-      dateRange = SearchConsoleService.getDateRange(daysNum);
+      if (startDate && endDate) {
+        dateRange = { startDate, endDate };
+      } else {
+        const daysNum = parseIntParam(days, environment.scamDetection.defaultDateRangeDays, 'days');
+        dateRange = SearchConsoleService.getDateRange(daysNum);
+      }
+
+      const detection = await this.scamDetectionService.detectScams(dateRange);
+
+      const criticalAlerts = detection.flaggedTerms
+        .filter((t) => t.severity === 'critical')
+        .slice(0, 20);
+
+      return {
+        success: true,
+        data: {
+          summary: detection.summary,
+          criticalAlerts,
+          totalQueriesAnalyzed: detection.totalQueriesAnalyzed,
+          period: dateRange,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to get dashboard data: ${error}`);
+      throw new HttpException('Failed to get dashboard data', HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
-    const detection = await this.scamDetectionService.detectScams(dateRange);
-
-    const criticalAlerts = detection.flaggedTerms
-      .filter((t) => t.severity === 'critical')
-      .slice(0, 20);
-
-    return {
-      success: true,
-      data: {
-        summary: detection.summary,
-        criticalAlerts,
-        totalQueriesAnalyzed: detection.totalQueriesAnalyzed,
-        period: dateRange,
-      },
-    };
   }
 
   @Get('emerging')
@@ -146,23 +178,47 @@ export class ScamsController {
     @Query('days') days?: string,
     @Query('page') page?: string
   ) {
-    const daysNum = days ? parseInt(days, 10) : 7;
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const result = await this.emergingThreatService.getEmergingThreats(daysNum, pageNum);
-    return { success: true, data: result };
+    try {
+      const daysNum = parseIntParam(days, 7, 'days');
+      const pageNum = parseIntParam(page, 1, 'page');
+      const result = await this.emergingThreatService.getEmergingThreats(daysNum, pageNum);
+      return { success: true, data: result };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to get emerging threats: ${error}`);
+      throw new HttpException('Failed to get emerging threats', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Post('keywords')
   async addKeyword(@Body() request: AddKeywordRequest) {
-    this.logger.log(`Adding keyword "${request.term}" to category "${request.category}"`);
-    await this.scamDetectionService.addKeyword(request.term, request.category);
-    return { success: true, message: `Added "${request.term}" to ${request.category}` };
+    try {
+      if (!request.term || typeof request.term !== 'string' || request.term.trim().length === 0) {
+        throw new HttpException('Invalid term: must be a non-empty string', HttpStatus.BAD_REQUEST);
+      }
+      if (!request.category || typeof request.category !== 'string') {
+        throw new HttpException('Invalid category: must be a valid category name', HttpStatus.BAD_REQUEST);
+      }
+
+      this.logger.log(`Adding keyword "${request.term}" to category "${request.category}"`);
+      await this.scamDetectionService.addKeyword(request.term, request.category);
+      return { success: true, message: `Added "${request.term}" to ${request.category}` };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to add keyword: ${error}`);
+      throw new HttpException('Failed to add keyword', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Post('emerging/:id/dismiss')
   async dismissThreat(@Param('id') id: string) {
-    this.logger.log(`Dismissing threat: ${id}`);
-    return { success: true, message: `Dismissed threat ${id}` };
+    try {
+      this.logger.log(`Dismissing threat: ${id}`);
+      return { success: true, message: `Dismissed threat ${id}` };
+    } catch (error) {
+      this.logger.error(`Failed to dismiss threat: ${error}`);
+      throw new HttpException('Failed to dismiss threat', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   /**
@@ -171,8 +227,28 @@ export class ScamsController {
    */
   @Get('benchmarks')
   async getCTRBenchmarks() {
-    const benchmarks = await this.emergingThreatService.getCTRBenchmarks();
-    return { success: true, data: benchmarks };
+    try {
+      const benchmarks = await this.emergingThreatService.getCTRBenchmarks();
+      return { success: true, data: benchmarks };
+    } catch (error) {
+      this.logger.error(`Failed to get CTR benchmarks: ${error}`);
+      throw new HttpException('Failed to get CTR benchmarks', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * GET /api/scams/seed-phrases
+   * Get all seed phrases from DynamoDB for UI dropdowns
+   */
+  @Get('seed-phrases')
+  getSeedPhrases() {
+    try {
+      const phrases = this.scamDetectionService.getSeedPhrases();
+      return { success: true, data: phrases };
+    } catch (error) {
+      this.logger.error(`Failed to get seed phrases: ${error}`);
+      throw new HttpException('Failed to get seed phrases', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
 }

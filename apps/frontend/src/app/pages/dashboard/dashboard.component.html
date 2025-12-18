@@ -10,21 +10,21 @@
         <i class="bi bi-calendar3 me-1"></i>
         {{ dateRange().startDate }} to {{ dateRange().endDate }}
       </span>
-      <div class="btn-group" ngbTooltip="Select time period for analysis">
-        <button class="btn" [class]="selectedDays() === 7 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(7)">7 Days</button>
-        <button class="btn" [class]="selectedDays() === 14 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(14)">14 Days</button>
-        <button class="btn" [class]="selectedDays() === 28 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(28)">28 Days</button>
-        <button class="btn" [class]="selectedDays() === 90 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(90)">90 Days</button>
+      <div class="btn-group" role="group" aria-label="Select time period for analysis" ngbTooltip="Select time period for analysis">
+        <button class="btn" [class]="selectedDays() === 7 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(7)" [attr.aria-pressed]="selectedDays() === 7">7 Days</button>
+        <button class="btn" [class]="selectedDays() === 14 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(14)" [attr.aria-pressed]="selectedDays() === 14">14 Days</button>
+        <button class="btn" [class]="selectedDays() === 28 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(28)" [attr.aria-pressed]="selectedDays() === 28">28 Days</button>
+        <button class="btn" [class]="selectedDays() === 90 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(90)" [attr.aria-pressed]="selectedDays() === 90">90 Days</button>
       </div>
-      <button class="btn btn-outline-secondary" (click)="loadDashboard()" ngbTooltip="Refresh dashboard data">
-        <i class="bi bi-arrow-clockwise"></i>
+      <button class="btn btn-outline-secondary" (click)="loadDashboard(); loadEmergingThreats()" ngbTooltip="Refresh dashboard data" aria-label="Refresh dashboard data">
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
   </div>
 
   <!-- Loading State -->
   @if (loading()) {
-    <div class="text-center py-5">
+    <div class="text-center py-5" aria-live="polite" aria-busy="true">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
@@ -125,13 +125,39 @@
     </div>
 
     <!-- Emerging Threats Summary Card -->
-    @if (emergingThreats(); as threats) {
+    @if (loadingEmergingThreats()) {
+      <div class="card border-warning" aria-live="polite" aria-busy="true">
+        <div class="card-body text-center py-4">
+          <div class="spinner-border spinner-border-sm text-warning me-2" role="status">
+            <span class="visually-hidden">Loading emerging threats...</span>
+          </div>
+          <span class="text-muted">Loading emerging threats...</span>
+        </div>
+      </div>
+    } @else if (emergingThreatsError()) {
+      <div class="card border-danger">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="card-title mb-1 text-danger">
+                <i class="bi bi-exclamation-circle me-2"></i>
+                Failed to Load Emerging Threats
+              </h5>
+              <p class="text-muted mb-0 small">{{ emergingThreatsError() }}</p>
+            </div>
+            <button class="btn btn-outline-danger" (click)="loadEmergingThreats()">
+              <i class="bi bi-arrow-clockwise me-1"></i> Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    } @else if (emergingThreats(); as threats) {
       <div class="card border-warning">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h5 class="card-title mb-1">
-                <i class="bi bi-shield-exclamation text-warning me-2"></i>
+                <i class="bi bi-shield-exclamation text-warning me-2" aria-hidden="true"></i>
                 Emerging Threats
               </h5>
               <p class="text-muted mb-0 small" ngbTooltip="New or growing queries with low CTR at good positions - indicates users may be clicking scam sites instead">
@@ -152,7 +178,7 @@
                 <div class="small text-muted">Total</div>
               </div>
               <a routerLink="/admin" class="btn btn-outline-warning" ngbTooltip="Review and manage emerging threats in the Admin Console">
-                Review in Admin Console <i class="bi bi-arrow-right"></i>
+                Review in Admin Console <i class="bi bi-arrow-right" aria-hidden="true"></i>
               </a>
             </div>
           </div>

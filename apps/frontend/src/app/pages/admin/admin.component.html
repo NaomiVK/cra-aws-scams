@@ -83,7 +83,7 @@
                       <th ngbTooltip="Average ranking position in search results">Pos</th>
                       <th ngbTooltip="Number of times users saw CRA pages for this query">Impr</th>
                       <th ngbTooltip="Number of clicks from this query to CRA pages">Clicks</th>
-                      <th ngbTooltip="Impressions growth rate per day. Fast growth = emerging threat">Velocity</th>
+                      <th ngbTooltip="Velocity = (Current Impressions − Previous Impressions) ÷ Days. Shows impressions growth per day. Fast growth = emerging threat.">Velocity</th>
                       <th ngbTooltip="Matched scam patterns: regex patterns (gray) and semantic matches (yellow)">Patterns</th>
                       <th>Actions</th>
                     </tr>
@@ -250,64 +250,6 @@
       </ng-template>
     </li>
 
-    <li [ngbNavItem]="3">
-      <button ngbNavLink>About</button>
-      <ng-template ngbNavContent>
-        <div class="card mt-4">
-          <div class="card-body">
-            <h5 class="card-title">CRA Scam Detection Dashboard</h5>
-            <p>
-              This application monitors Google Search Console data for potential scam-related
-              searches targeting Canada Revenue Agency (CRA) pages on canada.ca.
-            </p>
-
-            <h6 class="mt-4">How It Works</h6>
-            <ul>
-              <li>Fetches search query data from Google Search Console API</li>
-              <li>Filters for CRA-related URLs on canada.ca</li>
-              <li>Uses semantic embeddings (OpenAI) to match queries against known scam patterns</li>
-              <li>Analyzes CTR anomalies - low CTR at good position indicates users clicking scam sites</li>
-              <li>Compares current vs previous period to detect emerging threats</li>
-              <li>Calculates composite risk scores based on multiple factors</li>
-            </ul>
-
-            <h6 class="mt-4">Risk Score Formula</h6>
-            <ul>
-              <li><strong>With semantic match:</strong> Embedding (30%) + CTR (22%) + Position (13%) + Volume (13%) + Emergence (10%) + Velocity (12%)</li>
-              <li><strong>Without match:</strong> CTR (35%) + Position (22%) + Volume (18%) + Emergence (13%) + Velocity (12%)</li>
-              <li><strong>Trending boost:</strong> +10 points if term is trending on Google Trends</li>
-            </ul>
-
-            <h6 class="mt-4">Detection Categories</h6>
-            <ul>
-              <li>
-                <span class="badge bg-danger">Critical</span>
-                Fake/expired benefits and illegitimate payment methods
-              </li>
-              <li>
-                <span class="badge bg-warning text-dark">High</span>
-                Threat language and urgency tactics
-              </li>
-              <li>
-                <span class="badge bg-info">Medium</span>
-                Suspicious modifiers and vague promises
-              </li>
-              <li>
-                <span class="badge bg-secondary">Low</span>
-                General suspicious patterns
-              </li>
-            </ul>
-
-            <h6 class="mt-4">Configuration</h6>
-            <p>
-              Scam keywords can be managed through the Keywords tab above.
-              Use the <strong>Export Configuration</strong> button to download the current
-              configuration as a JSON file that can be deployed to the server.
-            </p>
-          </div>
-        </div>
-      </ng-template>
-    </li>
   </ul>
 
   <div [ngbNavOutlet]="nav"></div>

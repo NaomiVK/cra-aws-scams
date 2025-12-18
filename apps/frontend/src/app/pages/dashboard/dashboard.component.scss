@@ -2,6 +2,123 @@
   display: block;
 }
 
+// Card styling inspired by UPD dashboard
 .card {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  transition: box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  .card-header {
+    border-radius: 8px 8px 0 0;
+    padding: 1rem 1.25rem;
+    font-weight: 500;
+  }
+
+  .card-body {
+    padding: 1.25rem;
+  }
+}
+
+// KPI Cards
+.kpi-card {
+  border-width: 2px;
+
+  .card-body {
+    padding: 1.5rem 1rem;
+  }
+
+  .kpi-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .kpi-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.5rem;
+  }
+
+  i.bi {
+    opacity: 0.9;
+  }
+}
+
+// Alert Panel (Critical Alerts list)
+.alert-panel {
+  max-height: 400px;
+  overflow-y: auto;
+
+  .alert-item {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background-color: #fafafa;
+    }
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    strong {
+      color: #333;
+      font-weight: 600;
+    }
+  }
+}
+
+// Emerging Threats Card
+.card.border-warning {
+  border-width: 2px;
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+
+  .card-body {
+    padding: 1.25rem 1.5rem;
+  }
+
+  .card-title {
+    font-weight: 600;
+    color: #333;
+  }
+}
+
+// Badge improvements
+.badge {
+  font-weight: 500;
+  padding: 0.5em 0.75em;
+}
+
+// Button group styling
+.btn-group {
+  .btn {
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 991.98px) {
+  .kpi-card .kpi-value {
+    font-size: 2rem;
+  }
+
+  .alert-panel {
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .kpi-card .kpi-value {
+    font-size: 1.5rem;
+  }
 }

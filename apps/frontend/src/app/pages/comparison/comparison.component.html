@@ -109,7 +109,7 @@
 
   <!-- Loading State -->
   @if (loading()) {
-    <div class="text-center py-5">
+    <div class="text-center py-5" aria-live="polite" aria-busy="true">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
@@ -175,14 +175,16 @@
       <div class="col-md-6">
         <div class="card h-100">
           <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0" title="Terms that appeared in the current period but not in the previous period (minimum 300 impressions)">
-              <i class="bi bi-plus-circle me-2"></i>
+            <h5 class="mb-0">
+              <i class="bi bi-plus-circle-fill me-2" aria-hidden="true"></i>
               New Terms ({{ getNewTerms().length }})
-              <i class="bi bi-info-circle ms-1 small" style="opacity: 0.7;"></i>
+              <i class="bi bi-info-circle-fill ms-1 small" aria-hidden="true" ngbTooltip="Terms that appeared in the current period but not in the previous period (minimum 300 impressions)"></i>
             </h5>
-            <select class="form-select form-select-sm" style="width: 130px;"
+            <label class="visually-hidden" for="newTermsSortSelect">Sort new terms</label>
+            <select id="newTermsSortSelect" class="form-select form-select-sm" style="width: 130px;"
               [ngModel]="newTermsSort()"
-              (ngModelChange)="newTermsSort.set($event)">
+              (ngModelChange)="newTermsSort.set($event)"
+              aria-label="Sort new terms">
               <option value="desc">Highest First</option>
               <option value="asc">Lowest First</option>
             </select>
@@ -195,19 +197,23 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <span class="badge bg-primary">{{ term.current.impressions | number }} imp</span>
-                  @if (isExistingSeedPhrase(term.query)) {
-                    <span class="text-light" ngbTooltip="Already in seed phrases">
-                      <i class="bi bi-check-circle-fill"></i>
-                    </span>
-                  } @else if (isTermAdded(term.query)) {
-                    <span class="badge bg-light text-success"><i class="bi bi-check"></i> Added</span>
-                  } @else {
-                    <button class="btn btn-sm btn-outline-light"
-                      (click)="openAddModal(term.query)"
-                      ngbTooltip="Add to seed phrases">
-                      <i class="bi bi-plus-lg"></i>
-                    </button>
-                  }
+                  <div style="width: 70px; text-align: center;">
+                    @if (isExistingSeedPhrase(term.query)) {
+                      <span class="badge bg-secondary" ngbTooltip="Already in seed phrases">
+                        <i class="bi bi-dash-lg"></i> Exists
+                      </span>
+                    } @else if (isTermAdded(term.query)) {
+                      <span class="badge bg-light text-success">
+                        <i class="bi bi-check-lg fw-bold"></i> Added
+                      </span>
+                    } @else {
+                      <button class="btn btn-sm btn-outline-success"
+                        (click)="openAddModal(term.query)"
+                        ngbTooltip="Add to seed phrases">
+                        <i class="bi bi-plus-lg fw-bold"></i>
+                      </button>
+                    }
+                  </div>
                 </div>
               </div>
             } @empty {
@@ -220,14 +226,16 @@
       <div class="col-md-6">
         <div class="card h-100">
           <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0" title="Terms that existed in the previous period but not in the current period (minimum 300 impressions)">
-              <i class="bi bi-dash-circle me-2"></i>
+            <h5 class="mb-0">
+              <i class="bi bi-dash-circle-fill me-2" aria-hidden="true"></i>
               Dropped Off ({{ getRemovedTerms().length }})
-              <i class="bi bi-info-circle ms-1 small" style="opacity: 0.7;"></i>
+              <i class="bi bi-info-circle-fill ms-1 small" aria-hidden="true" ngbTooltip="Terms that existed in the previous period but not in the current period (minimum 300 impressions)"></i>
             </h5>
-            <select class="form-select form-select-sm" style="width: 130px;"
+            <label class="visually-hidden" for="droppedTermsSortSelect">Sort dropped terms</label>
+            <select id="droppedTermsSortSelect" class="form-select form-select-sm" style="width: 130px;"
               [ngModel]="droppedTermsSort()"
-              (ngModelChange)="droppedTermsSort.set($event)">
+              (ngModelChange)="droppedTermsSort.set($event)"
+              aria-label="Sort dropped terms">
               <option value="desc">Highest First</option>
               <option value="asc">Lowest First</option>
             </select>
@@ -285,21 +293,21 @@
         <table class="table table-hover mb-0">
           <thead class="table-light">
             <tr>
-              <th style="cursor: pointer;" (click)="sort('query')">
+              <th style="cursor: pointer;" (click)="sort('query')" role="button" tabindex="0" (keyup.enter)="sort('query')" aria-label="Sort by query">
                 Query
-                <i class="bi ms-1" [ngClass]="getSortIcon('query')"></i>
+                <i class="bi ms-1" [ngClass]="getSortIcon('query')" aria-hidden="true"></i>
               </th>
-              <th style="cursor: pointer;" (click)="sort('currentImpressions')">
+              <th style="cursor: pointer;" (click)="sort('currentImpressions')" role="button" tabindex="0" (keyup.enter)="sort('currentImpressions')" aria-label="Sort by current impressions">
                 Current Impressions
-                <i class="bi ms-1" [ngClass]="getSortIcon('currentImpressions')"></i>
+                <i class="bi ms-1" [ngClass]="getSortIcon('currentImpressions')" aria-hidden="true"></i>
               </th>
-              <th style="cursor: pointer;" (click)="sort('previousImpressions')">
+              <th style="cursor: pointer;" (click)="sort('previousImpressions')" role="button" tabindex="0" (keyup.enter)="sort('previousImpressions')" aria-label="Sort by previous impressions">
                 Previous Impressions
-                <i class="bi ms-1" [ngClass]="getSortIcon('previousImpressions')"></i>
+                <i class="bi ms-1" [ngClass]="getSortIcon('previousImpressions')" aria-hidden="true"></i>
               </th>
-              <th style="cursor: pointer;" (click)="sort('change')">
+              <th style="cursor: pointer;" (click)="sort('change')" role="button" tabindex="0" (keyup.enter)="sort('change')" aria-label="Sort by change percentage">
                 Change
-                <i class="bi ms-1" [ngClass]="getSortIcon('change')"></i>
+                <i class="bi ms-1" [ngClass]="getSortIcon('change')" aria-hidden="true"></i>
               </th>
               <th class="text-center" style="width: 100px;">Actions</th>
             </tr>
@@ -351,6 +359,12 @@
     <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss()"></button>
   </div>
   <div class="modal-body">
+    @if (addKeywordError()) {
+      <div class="alert alert-danger mb-3" role="alert">
+        <i class="bi bi-exclamation-circle me-2"></i>
+        {{ addKeywordError() }}
+      </div>
+    }
     <div class="mb-3">
       <span class="form-label fw-bold d-block">Term</span>
       <div class="form-control bg-light">{{ pendingTerm() }}</div>

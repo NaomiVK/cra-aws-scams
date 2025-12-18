@@ -381,6 +381,16 @@ export class ScamDetectionService implements OnModuleInit {
     return this.keywordsConfig.trendsKeywords;
   }
 
+  /**
+   * Get all seed phrases from DynamoDB for UI dropdowns
+   */
+  getSeedPhrases(): { term: string; category: string }[] {
+    return this.allSeedPhrases.map(sp => ({
+      term: sp.term,
+      category: sp.category,
+    }));
+  }
+
   async addKeyword(term: string, category: keyof ScamKeywordsConfig['categories']): Promise<void> {
     this.logger.log(`[ADD_KEYWORD] Request to add "${term}" to category "${category}"`);
 

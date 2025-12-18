@@ -5,7 +5,9 @@
       "mcp__basic-memory__read_note",
       "mcp__basic-memory__write_note",
       "Bash(npm run lint:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npx nx lint:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": [],
     "ask": []

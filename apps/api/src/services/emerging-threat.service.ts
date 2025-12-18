@@ -4,7 +4,6 @@ import { ComparisonService } from './comparison.service';
 import { ScamDetectionService } from './scam-detection.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
-import { TrendsService } from './trends.service';
 import {
   EmergingThreat,
   EmergingThreatsResponse,
@@ -14,7 +13,6 @@ import {
   TermComparison,
   PaginationInfo,
   VelocityMetrics,
-  TrendsData,
 } from '@cra-scam-detection/shared-types';
 
 /**
@@ -68,7 +66,6 @@ export class EmergingThreatService {
     private readonly scamDetectionService: ScamDetectionService,
     private readonly searchConsoleService: SearchConsoleService,
     private readonly embeddingService: EmbeddingService,
-    private readonly trendsService: TrendsService,
   ) {}
 
   /**
@@ -199,12 +196,6 @@ export class EmergingThreatService {
         );
 
         // Sort by risk score descending
-        allThreats.sort((a, b) => b.riskScore - a.riskScore);
-
-        // Enrich high-risk threats with Google Trends data
-        await this.enrichWithTrendsData(allThreats);
-
-        // Re-sort after trends enrichment (scores may have changed)
         allThreats.sort((a, b) => b.riskScore - a.riskScore);
 
         // Limit to max total threats
@@ -651,65 +642,5 @@ export class EmergingThreatService {
     if (score >= 51) return 'high';
     if (score >= 31) return 'medium';
     return 'low';
-  }
-
-  /**
-   * Enrich high-risk threats with Google Trends data
-   * Only checks top threats to avoid rate limiting
-   */
-  private async enrichWithTrendsData(threats: EmergingThreat[]): Promise<EmergingThreat[]> {
-    // Only check trends for high-risk items (top 30) to avoid rate limits
-    const highRiskThreats = threats.filter(t => t.riskScore >= 50).slice(0, 30);
-
-    if (highRiskThreats.length === 0) {
-      return threats;
-    }
-
-    this.logger.log(`Enriching ${highRiskThreats.length} high-risk threats with Google Trends data`);
-
-    for (const threat of highRiskThreats) {
-      try {
-        const interest = await this.trendsService.getInterestOverTime(
-          threat.query,
-          'now 7-d'  // Short timeframe for emerging threats
-        );
-
-        if (interest && interest.data.length > 0) {
-          const recent = interest.data.slice(-3);
-          const older = interest.data.slice(0, 3);
-          const recentAvg = recent.reduce((s, p) => s + p.value, 0) / recent.length;
-          const olderAvg = older.length > 0
-            ? older.reduce((s, p) => s + p.value, 0) / older.length
-            : recentAvg;
-          const changePercent = olderAvg > 0 ? ((recentAvg - olderAvg) / olderAvg) * 100 : 0;
-
-          const trendsData: TrendsData = {
-            interest: Math.round(recentAvg),
-            trend: changePercent > 10 ? 'up' : changePercent < -10 ? 'down' : 'stable',
-            changePercent: Math.round(changePercent),
-            isTrending: recentAvg > 50 && changePercent > 10,
-          };
-
-          threat.trendsData = trendsData;
-
-          // Boost risk score if trending (max +10)
-          if (trendsData.isTrending) {
-            threat.riskScore = Math.min(100, threat.riskScore + 10);
-            threat.riskLevel = this.getRiskLevel(threat.riskScore);
-          }
-        }
-      } catch (error) {
-        this.logger.debug(`Trends lookup failed for "${threat.query}": ${error.message}`);
-      }
-
-      // Rate limiting - small delay between requests
-      await this.delay(150);
-    }
-
-    return threats;
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

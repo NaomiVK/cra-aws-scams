@@ -64,6 +64,7 @@ export class ComparisonComponent implements OnInit {
   selectedCategory = signal<CategoryKey>('fakeExpiredBenefits');
   addedTerms = signal<Set<string>>(new Set());
   addingTerm = signal(false);
+  addKeywordError = signal<string | null>(null);
   existingSeedPhrases = signal<Set<string>>(new Set());
 
   // Computed filtered and sorted terms
@@ -308,6 +309,7 @@ export class ComparisonComponent implements OnInit {
   openAddModal(term: string): void {
     this.pendingTerm.set(term);
     this.selectedCategory.set('fakeExpiredBenefits');
+    this.addKeywordError.set(null);
     this.modalService.open(this.addKeywordModal, { centered: true });
   }
 
@@ -318,6 +320,8 @@ export class ComparisonComponent implements OnInit {
     if (!term) return;
 
     this.addingTerm.set(true);
+    this.addKeywordError.set(null);
+
     this.api.addKeyword(term, category).subscribe({
       next: (response) => {
         if (response?.success) {
@@ -327,12 +331,12 @@ export class ComparisonComponent implements OnInit {
           this.addedTerms.set(updated);
           this.modalService.dismissAll();
         } else {
-          console.error('Failed to add keyword:', response?.error);
+          this.addKeywordError.set(response?.error || 'Failed to add keyword');
         }
         this.addingTerm.set(false);
       },
-      error: (err) => {
-        console.error('Error adding keyword:', err);
+      error: () => {
+        this.addKeywordError.set('Failed to connect to API. Please try again.');
         this.addingTerm.set(false);
       }
     });

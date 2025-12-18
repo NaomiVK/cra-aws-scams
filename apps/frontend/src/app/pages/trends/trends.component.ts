@@ -1,10 +1,10 @@
-import { Component, OnInit, OnDestroy, inject, signal, ViewChild, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { TrendsResult, InterestByRegionResponse, RegionInterest } from '@cra-scam-detection/shared-types';
-import { NgApexchartsModule, ChartComponent, ApexChart, ApexXAxis, ApexYAxis, ApexStroke, ApexTooltip, ApexDataLabels, ApexLegend, ApexFill, ApexGrid, ApexMarkers } from 'ng-apexcharts';
+import { NgApexchartsModule, ApexAxisChartSeries, ApexChart, ApexXAxis, ApexYAxis, ApexStroke, ApexTooltip, ApexDataLabels, ApexLegend, ApexFill, ApexGrid, ApexMarkers } from 'ng-apexcharts';
 
 // Google Charts types - external library
 type GoogleVisualization = {
@@ -53,24 +53,29 @@ type TimePeriod = {
   styleUrl: './trends.component.scss',
 })
 export class TrendsComponent implements OnInit, OnDestroy {
-  @ViewChild('chart') chart!: ChartComponent;
-
   private readonly api = inject(ApiService);
   private googleChartsLoaded = false;
   private geoChart: { draw: (data: unknown, options: unknown) => void } | null = null;
+  private googleChartsScriptLoaded = false;
 
-  loading = signal(true);
+  loading = signal(false);
   error = signal<string | null>(null);
   trendsData = signal<TrendsResult | null>(null);
   regionData = signal<InterestByRegionResponse | null>(null);
   loadingRegion = signal(false);
+  googleChartsError = signal<string | null>(null);
+
+  // Seed phrases from DynamoDB
+  seedPhrases = signal<{ term: string; category: string }[]>([]);
+  loadingSeedPhrases = signal(false);
+  seedPhrasesError = signal<string | null>(null);
 
   constructor() {
     // Effect to redraw map when region data changes
     effect(() => {
       const data = this.regionData();
       if (data && this.googleChartsLoaded) {
-        // Use setTimeout to ensure DOM is rendered after Angular change detection
+        // Allow time for DOM to render after Angular change detection
         setTimeout(() => this.drawRegionsMap(), 100);
       }
     });
@@ -184,7 +189,37 @@ export class TrendsComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadGoogleCharts();
-    this.loadScamKeywordTrends();
+    this.loadSeedPhrases();
+  }
+
+  /**
+   * Load seed phrases from DynamoDB for dropdown
+   */
+  async loadSeedPhrases(): Promise<void> {
+    this.loadingSeedPhrases.set(true);
+    this.seedPhrasesError.set(null);
+    try {
+      const response = await firstValueFrom(this.api.getSeedPhrases());
+      if (response?.success && response.data) {
+        this.seedPhrases.set(response.data);
+      } else {
+        this.seedPhrasesError.set(response?.error || 'Failed to load seed phrases');
+      }
+    } catch {
+      this.seedPhrasesError.set('Failed to connect to seed phrases API');
+    } finally {
+      this.loadingSeedPhrases.set(false);
+    }
+  }
+
+  /**
+   * Search for a seed phrase from the dropdown
+   */
+  onSeedPhraseSelect(term: string): void {
+    if (term) {
+      this.searchTerm.set(term);
+      this.searchTrends();
+    }
   }
 
   ngOnDestroy(): void {
@@ -194,37 +229,40 @@ export class TrendsComponent implements OnInit, OnDestroy {
   private googleMapsApiKey = '';
 
   private async loadGoogleCharts(): Promise<void> {
+    this.googleChartsError.set(null);
+
     // Fetch API key from server
     try {
       const response = await firstValueFrom(this.api.getMapsApiKey());
       if (response?.success && response.data?.apiKey) {
         this.googleMapsApiKey = response.data.apiKey;
-        console.log('Google Maps API key loaded successfully');
+      } else {
+        this.googleChartsError.set('Google Maps API key not configured');
+        return;
       }
-    } catch (err) {
-      console.error('Failed to fetch Maps API key:', err);
-    }
-
-    if (!this.googleMapsApiKey) {
-      console.warn('Google Maps API key not configured');
+    } catch {
+      this.googleChartsError.set('Failed to fetch Maps API key');
       return;
     }
 
     // Check if already loaded
     if (typeof google !== 'undefined' && google.visualization) {
-      console.log('Google Charts already loaded');
       this.googleChartsLoaded = true;
       return;
     }
 
+    // Prevent loading script multiple times
+    if (this.googleChartsScriptLoaded) {
+      return;
+    }
+    this.googleChartsScriptLoaded = true;
+
     // Load Google Charts script
-    console.log('Loading Google Charts script...');
     const script = document.createElement('script');
     script.src = 'https://www.gstatic.com/charts/loader.js';
     script.onload = () => {
-      console.log('Google Charts loader script loaded, initializing geochart package...');
       if (typeof google === 'undefined' || !google.charts) {
-        console.error('Google Charts failed to load properly');
+        this.googleChartsError.set('Google Charts failed to load properly');
         return;
       }
       google.charts.load('current', {
@@ -232,56 +270,47 @@ export class TrendsComponent implements OnInit, OnDestroy {
         mapsApiKey: this.googleMapsApiKey
       });
       google.charts.setOnLoadCallback(() => {
-        console.log('Google Charts geochart package ready');
         this.googleChartsLoaded = true;
         // Draw map if data is already available
         if (this.regionData()) {
-          console.log('Region data available, drawing map...');
           setTimeout(() => this.drawRegionsMap(), 100);
         }
       });
     };
-    script.onerror = (err) => {
-      console.error('Failed to load Google Charts script:', err);
+    script.onerror = () => {
+      this.googleChartsError.set('Failed to load Google Charts script');
     };
     document.head.appendChild(script);
   }
 
   private drawRegionsMap(): void {
-    console.log('drawRegionsMap called');
     const regionData = this.regionData();
     if (!regionData?.regions || regionData.regions.length === 0) {
-      console.log('No region data available');
       return;
     }
 
     const chartElement = document.getElementById('canada-geochart');
     if (!chartElement) {
-      console.log('canada-geochart element not found in DOM');
       return;
     }
 
     // Check Google Charts is available
     if (typeof google === 'undefined' || !google.visualization) {
-      console.error('Google Charts visualization not available');
       return;
     }
-
-    console.log('Drawing GeoChart with', regionData.regions.length, 'regions');
 
     // Build data table for GeoChart
     const dataArray: (string | number)[][] = [['Province', 'Interest']];
 
     // Map region names to format Google Charts expects
     for (const region of regionData.regions) {
-      // Google Charts expects province names for Canada
       dataArray.push([region.geoName, region.value]);
     }
 
     const data = google.visualization.arrayToDataTable(dataArray);
 
     const options = {
-      region: 'CA', // Canada
+      region: 'CA',
       resolution: 'provinces',
       colorAxis: {
         colors: ['#c6dafc', '#8ab4f8', '#4285f4', '#1a73e8'],
@@ -299,28 +328,6 @@ export class TrendsComponent implements OnInit, OnDestroy {
 
     this.geoChart = new google.visualization.GeoChart(chartElement);
     this.geoChart.draw(data, options);
-    console.log('GeoChart draw() called successfully');
-  }
-
-  async loadScamKeywordTrends(): Promise<void> {
-    this.loading.set(true);
-    this.error.set(null);
-    this.currentSearchTerm.set('Monitored Scam Keywords');
-
-    try {
-      const response = await firstValueFrom(this.api.getScamKeywordTrends());
-      if (response?.success && response.data) {
-        this.trendsData.set(response.data);
-        this.updateChart(response.data);
-      } else {
-        this.error.set(response?.error || 'Failed to load trends data');
-      }
-    } catch (err) {
-      this.error.set('Failed to connect to API or Google Trends');
-      console.error('Trends load error:', err);
-    } finally {
-      this.loading.set(false);
-    }
   }
 
   async searchTrends(): Promise<void> {
@@ -359,15 +366,15 @@ export class TrendsComponent implements OnInit, OnDestroy {
       if (response?.success && response.data) {
         this.regionData.set(response.data);
       }
-    } catch (err) {
-      console.error('Failed to load region data:', err);
+    } catch {
+      // Region data is optional, don't show error
     } finally {
       this.loadingRegion.set(false);
     }
   }
 
   onTimePeriodChange(): void {
-    if (this.currentSearchTerm() && this.currentSearchTerm() !== 'Monitored Scam Keywords') {
+    if (this.currentSearchTerm()) {
       this.searchTrends();
     }
   }
@@ -484,48 +491,5 @@ export class TrendsComponent implements OnInit, OnDestroy {
     const data = this.regionData();
     if (!data?.regions) return [];
     return [...data.regions].sort((a, b) => b.value - a.value);
-  }
-
-  // Map-related properties and methods
-  hoveredRegion: string | null = null;
-
-  // Province name mapping
-  private readonly provinceNames: Record<string, string> = {
-    'CA-AB': 'Alberta',
-    'CA-BC': 'British Columbia',
-    'CA-MB': 'Manitoba',
-    'CA-NB': 'New Brunswick',
-    'CA-NL': 'Newfoundland and Labrador',
-    'CA-NS': 'Nova Scotia',
-    'CA-NT': 'Northwest Territories',
-    'CA-NU': 'Nunavut',
-    'CA-ON': 'Ontario',
-    'CA-PE': 'Prince Edward Island',
-    'CA-QC': 'Quebec',
-    'CA-SK': 'Saskatchewan',
-    'CA-YT': 'Yukon',
-  };
-
-  getRegionColorByCode(geoCode: string): string {
-    const value = this.getRegionValue(geoCode);
-    return this.getRegionColor(value);
-  }
-
-  getRegionValue(geoCode: string): number {
-    const data = this.regionData();
-    if (!data?.regions) return 0;
-    const region = data.regions.find(r => r.geoCode === geoCode);
-    return region?.value || 0;
-  }
-
-  getRegionName(geoCode: string): string {
-    // First check the API data
-    const data = this.regionData();
-    if (data?.regions) {
-      const region = data.regions.find(r => r.geoCode === geoCode);
-      if (region) return region.geoName;
-    }
-    // Fallback to our mapping
-    return this.provinceNames[geoCode] || geoCode;
   }
 }
