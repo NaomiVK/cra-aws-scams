@@ -1,11 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CacheService } from './cache.service';
-import { ScamDetectionService } from './scam-detection.service';
 import {
   TrendDataPoint,
   InterestOverTime,
   TrendExploration,
-  TrendsPanelData,
   TrendsResult,
   InterestByRegionResponse,
   RegionInterest,
@@ -19,10 +17,7 @@ const googleTrends = require('google-trends-api');
 export class TrendsService {
   private readonly logger = new Logger(TrendsService.name);
 
-  constructor(
-    private readonly cacheService: CacheService,
-    private readonly scamDetectionService: ScamDetectionService
-  ) {}
+  constructor(private readonly cacheService: CacheService) {}
 
   /**
    * Convert time range string to startTime/endTime Date objects
@@ -287,68 +282,6 @@ export class TrendsService {
           this.logger.error(`Failed to explore keyword "${keyword}":`, error);
           return null;
         }
-      },
-      environment.cache.trendsTtl
-    );
-  }
-
-  /**
-   * Get trends data for all monitored scam keywords
-   */
-  async getScamKeywordsTrends(): Promise<TrendsPanelData> {
-    const cacheKey = 'trends:scam-panel';
-
-    return this.cacheService.getOrSet(
-      cacheKey,
-      async () => {
-        const keywords = this.scamDetectionService.getTrendsKeywords();
-        const monitoredKeywords: TrendsPanelData['monitoredKeywords'] = [];
-
-        // Fetch trends for each keyword (with rate limiting)
-        for (const keyword of keywords.slice(0, 10)) {
-          // Limit to 10 to avoid rate limits
-          try {
-            const interest = await this.getInterestOverTime(keyword);
-            if (interest && interest.data.length > 0) {
-              const recent = interest.data.slice(-7); // Last 7 data points
-              const older = interest.data.slice(-14, -7);
-
-              const recentAvg =
-                recent.reduce((sum, p) => sum + p.value, 0) / recent.length;
-              const olderAvg =
-                older.length > 0
-                  ? older.reduce((sum, p) => sum + p.value, 0) / older.length
-                  : recentAvg;
-
-              const changePercent =
-                olderAvg > 0 ? ((recentAvg - olderAvg) / olderAvg) * 100 : 0;
-
-              monitoredKeywords.push({
-                keyword,
-                currentInterest: Math.round(recentAvg),
-                trend:
-                  changePercent > 10
-                    ? 'up'
-                    : changePercent < -10
-                      ? 'down'
-                      : 'stable',
-                changePercent: Math.round(changePercent),
-              });
-            }
-
-            // Small delay to avoid rate limiting
-            await this.delay(500);
-          } catch (error) {
-            this.logger.warn(`Skipping trend for "${keyword}": ${error.message}`);
-          }
-        }
-
-        return {
-          lastUpdated: new Date().toISOString(),
-          monitoredKeywords,
-          risingQueries: [], // Could be populated from related queries
-          correlationAlerts: [], // Would need Search Console data to correlate
-        };
       },
       environment.cache.trendsTtl
     );

@@ -126,15 +126,6 @@ export class ApiService {
   }
 
   /**
-   * Get scam keyword trends
-   */
-  getScamKeywordTrends(): Observable<ApiResponse<TrendsResult>> {
-    return this.http.get<ApiResponse<TrendsResult>>(
-      `${this.baseUrl}/trends/scam-keywords`
-    );
-  }
-
-  /**
    * Get seed phrases from DynamoDB for dropdown
    */
   getSeedPhrases(): Observable<ApiResponse<{ term: string; category: string }[]>> {

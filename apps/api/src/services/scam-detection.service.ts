@@ -377,10 +377,6 @@ export class ScamDetectionService implements OnModuleInit {
     return this.keywordsConfig;
   }
 
-  getTrendsKeywords(): string[] {
-    return this.keywordsConfig.trendsKeywords;
-  }
-
   /**
    * Get all seed phrases from DynamoDB for UI dropdowns
    */

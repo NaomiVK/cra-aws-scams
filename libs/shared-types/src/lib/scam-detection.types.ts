@@ -92,8 +92,6 @@ export type ScamKeywordsConfig = {
       multiplier: number;
     };
   };
-  // Keywords to monitor in Google Trends
-  trendsKeywords: string[];
 };
 
 /**

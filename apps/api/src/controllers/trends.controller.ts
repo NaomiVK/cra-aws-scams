@@ -111,12 +111,6 @@ export class TrendsController {
     };
   }
 
-  @Get('scam-keywords')
-  async getScamKeywordsTrends() {
-    this.logger.log('Fetching trends for scam keywords');
-    const result = await this.trendsService.getScamKeywordsTrends();
-    return { success: true, data: result };
-  }
 
   @Get('region')
   async getInterestByRegion(
