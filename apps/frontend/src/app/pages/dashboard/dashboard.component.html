@@ -16,6 +16,9 @@
         <button class="btn" [class]="selectedDays() === 28 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(28)">28 Days</button>
         <button class="btn" [class]="selectedDays() === 90 ? 'btn-primary' : 'btn-outline-secondary'" (click)="onQuickDateRange(90)">90 Days</button>
       </div>
+      <button class="btn btn-outline-secondary" (click)="loadDashboard()" ngbTooltip="Refresh dashboard data">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
     </div>
   </div>
 
@@ -39,56 +42,82 @@
 
   <!-- Dashboard Content -->
   @if (!loading() && !error() && dashboardData()) {
-    <!-- KPI Cards -->
+    <!-- Main Content: Critical Alerts (left) + KPI Cards (right) -->
     <div class="row mb-4">
-      <div class="col-md-3">
-        <div class="card kpi-card border-danger" ngbTooltip="Queries matching critical scam patterns like fake benefits or illegitimate payment methods">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div class="kpi-value text-danger">{{ dashboardData()!.summary.critical }}</div>
-                <div class="kpi-label">Critical Alerts</div>
+      <!-- Critical Alerts Panel -->
+      <div class="col-lg-8">
+        <div class="card h-100">
+          <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center" ngbTooltip="Queries matching critical severity patterns - highest priority for investigation">
+            <h5 class="mb-0">
+              <i class="bi bi-exclamation-octagon me-2"></i>
+              Critical Alerts
+            </h5>
+            <span class="badge bg-light text-danger fs-6">{{ dashboardData()!.criticalAlerts.length }}</span>
+          </div>
+          <div class="card-body alert-panel p-0">
+            @for (term of dashboardData()!.criticalAlerts; track term.query) {
+              <div class="alert-item">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <strong>{{ term.query }}</strong>
+                    <div class="small text-muted" ngbTooltip="Matched scam patterns">
+                      {{ term.matchedPatterns.join(', ') }}
+                    </div>
+                  </div>
+                  <div class="text-end">
+                    <span class="badge bg-danger" ngbTooltip="Total impressions in selected period">{{ term.impressions | number }} imp</span>
+                    <div class="small text-muted">CTR: {{ (term.ctr * 100).toFixed(1) }}%</div>
+                  </div>
+                </div>
               </div>
-              <i class="bi bi-exclamation-octagon-fill text-danger fs-2"></i>
-            </div>
+            } @empty {
+              <div class="p-4 text-center text-muted">
+                <i class="bi bi-check-circle fs-1 text-success"></i>
+                <p class="mt-2 mb-0">No critical alerts detected</p>
+                <small>All monitored queries appear normal</small>
+              </div>
+            }
           </div>
         </div>
       </div>
-      <div class="col-md-3">
-        <div class="card kpi-card border-warning" ngbTooltip="Queries with threat language or urgency tactics requiring prompt review">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div class="kpi-value text-warning">{{ dashboardData()!.summary.high }}</div>
+
+      <!-- KPI Cards (right side, stacked 2x2) -->
+      <div class="col-lg-4">
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="card kpi-card border-danger h-100" ngbTooltip="Queries matching critical scam patterns">
+              <div class="card-body text-center py-3">
+                <i class="bi bi-exclamation-octagon-fill text-danger fs-2"></i>
+                <div class="kpi-value text-danger mt-2">{{ dashboardData()!.summary.critical }}</div>
+                <div class="kpi-label">Critical</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card kpi-card border-warning h-100" ngbTooltip="Queries with threat language or urgency tactics">
+              <div class="card-body text-center py-3">
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-2"></i>
+                <div class="kpi-value text-warning mt-2">{{ dashboardData()!.summary.high }}</div>
                 <div class="kpi-label">High Priority</div>
               </div>
-              <i class="bi bi-exclamation-triangle-fill text-warning fs-2"></i>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card kpi-card" ngbTooltip="Total number of queries flagged as potentially scam-related">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div class="kpi-value">{{ dashboardData()!.summary.total }}</div>
+          <div class="col-6">
+            <div class="card kpi-card h-100" ngbTooltip="Total number of queries flagged as potentially scam-related">
+              <div class="card-body text-center py-3">
+                <i class="bi bi-flag-fill text-secondary fs-2"></i>
+                <div class="kpi-value mt-2">{{ dashboardData()!.summary.total }}</div>
                 <div class="kpi-label">Total Flagged</div>
               </div>
-              <i class="bi bi-flag-fill text-secondary fs-2"></i>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card kpi-card" ngbTooltip="Total unique search queries analyzed from Google Search Console">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div class="kpi-value">{{ dashboardData()!.totalQueriesAnalyzed | number }}</div>
-                <div class="kpi-label">Queries Analyzed</div>
+          <div class="col-6">
+            <div class="card kpi-card h-100" ngbTooltip="Total unique search queries analyzed from Google Search Console">
+              <div class="card-body text-center py-3">
+                <i class="bi bi-search text-primary fs-2"></i>
+                <div class="kpi-value mt-2">{{ dashboardData()!.totalQueriesAnalyzed | number }}</div>
+                <div class="kpi-label">Analyzed</div>
               </div>
-              <i class="bi bi-search text-primary fs-2"></i>
             </div>
           </div>
         </div>
@@ -97,7 +126,7 @@
 
     <!-- Emerging Threats Summary Card -->
     @if (emergingThreats(); as threats) {
-      <div class="card mb-4 border-warning">
+      <div class="card border-warning">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -130,265 +159,5 @@
         </div>
       </div>
     }
-
-    <!-- Main Content Row -->
-    <div class="row">
-      <!-- Critical Alerts Panel -->
-      <div class="col-lg-4 mb-4">
-        <div class="card h-100">
-          <div class="card-header bg-danger text-white" ngbTooltip="Queries matching critical severity patterns - highest priority for investigation">
-            <h5 class="mb-0">
-              <i class="bi bi-exclamation-octagon me-2"></i>
-              Critical Alerts
-            </h5>
-          </div>
-          <div class="card-body alert-panel p-0">
-            @for (term of dashboardData()!.criticalAlerts; track term.query) {
-              <div class="alert-item">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <strong>{{ term.query }}</strong>
-                    <div class="small text-muted" ngbTooltip="Matched scam patterns">
-                      {{ term.matchedPatterns.join(', ') }}
-                    </div>
-                  </div>
-                  <span class="badge bg-danger" ngbTooltip="Total impressions in selected period">{{ term.impressions | number }} imp</span>
-                </div>
-              </div>
-            } @empty {
-              <div class="p-3 text-center text-muted">
-                <i class="bi bi-check-circle fs-1"></i>
-                <p class="mt-2 mb-0">No critical alerts</p>
-              </div>
-            }
-          </div>
-        </div>
-      </div>
-
-      <!-- New Terms Panel -->
-      <div class="col-lg-4 mb-4">
-        <div class="card h-100">
-          <div class="card-header bg-info text-white" ngbTooltip="Flagged terms first detected within the last 7 days">
-            <h5 class="mb-0">
-              <i class="bi bi-plus-circle me-2"></i>
-              New Terms Detected
-            </h5>
-          </div>
-          <div class="card-body alert-panel p-0">
-            @for (term of dashboardData()!.newTerms; track term.query) {
-              <div class="alert-item">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <strong>{{ term.query }}</strong>
-                    <span class="badge ms-2" [ngClass]="getSeverityClass(term.severity)" ngbTooltip="Severity based on matched patterns">
-                      {{ term.severity }}
-                    </span>
-                  </div>
-                  <span class="badge bg-secondary" ngbTooltip="Impressions in selected period">{{ term.impressions | number }} imp</span>
-                </div>
-                <div class="small text-muted">{{ term.matchedCategory }}</div>
-              </div>
-            } @empty {
-              <div class="p-3 text-center text-muted">
-                <i class="bi bi-inbox fs-1"></i>
-                <p class="mt-2 mb-0">No new terms detected</p>
-              </div>
-            }
-          </div>
-        </div>
-      </div>
-
-      <!-- Trending Terms Panel -->
-      <div class="col-lg-4 mb-4">
-        <div class="card h-100">
-          <div class="card-header bg-warning" ngbTooltip="Flagged queries with significant impression growth compared to previous period">
-            <h5 class="mb-0">
-              <i class="bi bi-graph-up me-2"></i>
-              Trending Terms
-            </h5>
-          </div>
-          <div class="card-body alert-panel p-0">
-            @for (term of dashboardData()!.trendingTerms; track term.query) {
-              <div class="alert-item">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <strong>{{ term.query }}</strong>
-                    <span class="badge ms-2" [ngClass]="getSeverityClass(term.severity)">
-                      {{ term.severity }}
-                    </span>
-                  </div>
-                  <div class="text-end">
-                    <span class="badge bg-success" [ngbTooltip]="'Was ' + (term.previousImpressions | number) + ' impressions last period'">
-                      +{{ term.changeAmount | number }}
-                      <small>({{ term.changePercent > 999 ? '>999' : (term.changePercent | number:'1.0-0') }}%)</small>
-                    </span>
-                  </div>
-                </div>
-                <div class="small text-muted">{{ term.currentImpressions | number }} impressions now</div>
-              </div>
-            } @empty {
-              <div class="p-3 text-center text-muted">
-                <i class="bi bi-graph-down fs-1"></i>
-                <p class="mt-2 mb-0">No trending terms</p>
-              </div>
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Filters and Export -->
-    <div class="card mb-4">
-      <div class="card-body">
-        <div class="row align-items-center">
-          <div class="col-md-4">
-            <div class="input-group">
-              <span class="input-group-text" ngbTooltip="Search by query text or pattern">
-                <i class="bi bi-search"></i>
-              </span>
-              <input
-                type="text"
-                class="form-control"
-                placeholder="Search terms..."
-                [ngModel]="searchQuery()"
-                (ngModelChange)="onSearchChange($event)"
-              />
-            </div>
-          </div>
-          <div class="col-md-2">
-            <select class="form-select" [ngModel]="severityFilter()" (ngModelChange)="onSeverityFilter($event)"
-                    ngbTooltip="Filter by severity level">
-              <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <select class="form-select" [ngModel]="statusFilter()" (ngModelChange)="onStatusFilter($event)"
-                    ngbTooltip="Filter by review status">
-              <option value="all">All Status</option>
-              <option value="new">New</option>
-              <option value="active">Active</option>
-              <option value="reviewed">Reviewed</option>
-              <option value="dismissed">Dismissed</option>
-            </select>
-          </div>
-          <div class="col-md-4 text-end">
-            <div class="btn-group">
-              <button class="btn btn-outline-primary" (click)="exportCsv()" ngbTooltip="Download flagged terms as CSV">
-                <i class="bi bi-file-earmark-spreadsheet me-1"></i> CSV
-              </button>
-              <button class="btn btn-outline-primary" (click)="exportExcel()" ngbTooltip="Download flagged terms as Excel">
-                <i class="bi bi-file-earmark-excel me-1"></i> Excel
-              </button>
-            </div>
-            <button class="btn btn-outline-secondary ms-2" (click)="loadDashboard()" ngbTooltip="Refresh dashboard data">
-              <i class="bi bi-arrow-clockwise"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Flagged Terms Table -->
-    <div class="card">
-      <div class="card-header">
-        <h5 class="mb-0">
-          Flagged Terms
-          <span class="badge bg-secondary ms-2" ngbTooltip="Number of terms matching current filters">{{ filteredTerms().length }}</span>
-        </h5>
-      </div>
-      <div class="table-responsive">
-        <table class="table table-hover data-table mb-0">
-          <thead>
-            <tr>
-              <th (click)="onSort('query')" [class.sorted]="sortField() === 'query'" ngbTooltip="Search query from Google Search Console">
-                Query
-                <i class="bi sort-icon" [ngClass]="sortDirection() === 'asc' ? 'bi-sort-alpha-down' : 'bi-sort-alpha-up'"></i>
-              </th>
-              <th (click)="onSort('severity')" [class.sorted]="sortField() === 'severity'" ngbTooltip="Severity based on matched scam patterns">
-                Severity
-                <i class="bi sort-icon" [ngClass]="sortDirection() === 'asc' ? 'bi-sort-down' : 'bi-sort-up'"></i>
-              </th>
-              <th ngbTooltip="Category of scam pattern that matched">Category</th>
-              <th (click)="onSort('impressions')" [class.sorted]="sortField() === 'impressions'" ngbTooltip="Number of times CRA pages were shown for this query">
-                Impressions
-                <i class="bi sort-icon" [ngClass]="sortDirection() === 'asc' ? 'bi-sort-numeric-down' : 'bi-sort-numeric-up'"></i>
-              </th>
-              <th (click)="onSort('clicks')" [class.sorted]="sortField() === 'clicks'" ngbTooltip="Number of clicks to CRA pages from this query">
-                Clicks
-                <i class="bi sort-icon" [ngClass]="sortDirection() === 'asc' ? 'bi-sort-numeric-down' : 'bi-sort-numeric-up'"></i>
-              </th>
-              <th (click)="onSort('ctr')" [class.sorted]="sortField() === 'ctr'" ngbTooltip="Click-through rate - low CTR at good position may indicate users clicking scam sites">
-                CTR
-                <i class="bi sort-icon" [ngClass]="sortDirection() === 'asc' ? 'bi-sort-numeric-down' : 'bi-sort-numeric-up'"></i>
-              </th>
-              <th (click)="onSort('position')" [class.sorted]="sortField() === 'position'" ngbTooltip="Average position in Google search results">
-                Position
-                <i class="bi sort-icon" [ngClass]="sortDirection() === 'asc' ? 'bi-sort-numeric-down' : 'bi-sort-numeric-up'"></i>
-              </th>
-              <th ngbTooltip="Review status of this flagged term">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (term of paginatedTerms(); track term.query) {
-              <tr>
-                <td>
-                  <strong>{{ term.query }}</strong>
-                  <div class="small text-muted">{{ term.matchedPatterns.join(', ') }}</div>
-                </td>
-                <td>
-                  <span class="badge" [ngClass]="getSeverityClass(term.severity)">
-                    {{ term.severity }}
-                  </span>
-                </td>
-                <td>{{ term.matchedCategory }}</td>
-                <td>{{ term.impressions | number }}</td>
-                <td>{{ term.clicks | number }}</td>
-                <td>{{ (term.ctr * 100).toFixed(2) }}%</td>
-                <td>{{ term.position.toFixed(1) }}</td>
-                <td>
-                  <span class="badge" [ngClass]="{
-                    'bg-success': term.status === 'new',
-                    'bg-primary': term.status === 'active',
-                    'bg-secondary': term.status === 'reviewed',
-                    'bg-dark': term.status === 'dismissed'
-                  }">
-                    {{ term.status }}
-                  </span>
-                </td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="8" class="text-center py-4 text-muted">
-                  No flagged terms found matching your filters.
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      @if (filteredTerms().length > pageSize()) {
-        <div class="card-footer">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="text-muted">
-              Showing {{ (page() - 1) * pageSize() + 1 }} to
-              {{ Math.min(page() * pageSize(), filteredTerms().length) }}
-              of {{ filteredTerms().length }} entries
-            </div>
-            <ngb-pagination
-              [collectionSize]="filteredTerms().length"
-              [(page)]="page"
-              [pageSize]="pageSize()"
-              [maxSize]="5"
-              [rotate]="true"
-              [boundaryLinks]="true"
-            />
-          </div>
-        </div>
-      }
-    </div>
   }
 </div>

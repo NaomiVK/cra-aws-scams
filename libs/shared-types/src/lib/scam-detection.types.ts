@@ -159,16 +159,9 @@ export type DashboardData = {
     info: number;
     total: number;
   };
-  flaggedTerms: FlaggedTerm[];
   criticalAlerts: FlaggedTerm[];
-  newTerms: FlaggedTerm[];
-  trendingTerms: TrendingTermData[];
   totalQueriesAnalyzed: number;
   period: {
-    startDate: string;
-    endDate: string;
-  };
-  comparisonPeriod?: {
     startDate: string;
     endDate: string;
   };

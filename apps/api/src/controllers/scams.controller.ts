@@ -2,11 +2,9 @@ import { Controller, Get, Post, Query, Body, Param, Logger } from '@nestjs/commo
 import { ScamDetectionService } from '../services/scam-detection.service';
 import { SearchConsoleService } from '../services/search-console.service';
 import { EmergingThreatService } from '../services/emerging-threat.service';
-import { ComparisonService } from '../services/comparison.service';
 import {
   DateRange,
   AddKeywordRequest,
-  TrendingTermData,
 } from '@cra-scam-detection/shared-types';
 import { environment } from '../environments/environment';
 
@@ -16,9 +14,7 @@ export class ScamsController {
 
   constructor(
     private readonly scamDetectionService: ScamDetectionService,
-    private readonly searchConsoleService: SearchConsoleService,
     private readonly emergingThreatService: EmergingThreatService,
-    private readonly comparisonService: ComparisonService
   ) {}
 
   /**
@@ -118,83 +114,29 @@ export class ScamsController {
     @Query('days') days?: string
   ) {
     let dateRange: DateRange;
-    let daysNum: number;
 
     if (startDate && endDate) {
       dateRange = { startDate, endDate };
-      // Calculate days from date range
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      daysNum = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     } else {
-      daysNum = days
+      const daysNum = days
         ? parseInt(days, 10)
         : environment.scamDetection.defaultDateRangeDays;
       dateRange = SearchConsoleService.getDateRange(daysNum);
     }
 
-    // Calculate previous period for comparison
-    const prevEnd = new Date(dateRange.startDate);
-    prevEnd.setDate(prevEnd.getDate() - 1);
-    const prevStart = new Date(prevEnd);
-    prevStart.setDate(prevStart.getDate() - daysNum + 1);
-    const previousPeriod: DateRange = {
-      startDate: prevStart.toISOString().split('T')[0],
-      endDate: prevEnd.toISOString().split('T')[0],
-    };
-
-    // Get detection results and comparison data in parallel
-    const [detection, comparison] = await Promise.all([
-      this.scamDetectionService.detectScams(dateRange),
-      this.comparisonService.comparePeriods({
-        currentPeriod: dateRange,
-        previousPeriod,
-      }),
-    ]);
+    const detection = await this.scamDetectionService.detectScams(dateRange);
 
     const criticalAlerts = detection.flaggedTerms
       .filter((t) => t.severity === 'critical')
-      .slice(0, 10);
-
-    const newTerms = detection.flaggedTerms
-      .filter((t) => t.status === 'new')
-      .slice(0, 10);
-
-    // Build trending terms with actual comparison data
-    // Map comparison data by query for quick lookup
-    const comparisonMap = new Map(
-      comparison.terms.map((t) => [t.query.toLowerCase(), t])
-    );
-
-    // Get trending flagged terms with real delta values
-    const trendingTerms: TrendingTermData[] = detection.flaggedTerms
-      .map((term) => {
-        const comp = comparisonMap.get(term.query.toLowerCase());
-        return {
-          query: term.query,
-          severity: term.severity,
-          matchedCategory: term.matchedCategory,
-          currentImpressions: term.impressions,
-          previousImpressions: comp?.previous.impressions || 0,
-          changeAmount: comp?.change.impressions || term.impressions,
-          changePercent: comp?.change.impressionsPercent || 100,
-        };
-      })
-      .filter((t) => t.changeAmount > 0) // Only show terms with positive growth
-      .sort((a, b) => b.changeAmount - a.changeAmount)
-      .slice(0, 10);
+      .slice(0, 20);
 
     return {
       success: true,
       data: {
         summary: detection.summary,
-        flaggedTerms: detection.flaggedTerms,
         criticalAlerts,
-        newTerms,
-        trendingTerms,
         totalQueriesAnalyzed: detection.totalQueriesAnalyzed,
         period: dateRange,
-        comparisonPeriod: previousPeriod,
       },
     };
   }
