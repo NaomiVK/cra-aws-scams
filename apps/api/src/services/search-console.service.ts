@@ -190,17 +190,19 @@ export class SearchConsoleService implements OnModuleInit {
 
       if (existing) {
         // Aggregate metrics
-        const totalImpressions = existing.impressions + row.impressions;
+        const existingImpressions = existing.impressions;
+        const totalImpressions = existingImpressions + row.impressions;
         const totalClicks = existing.clicks + row.clicks;
+
+        // Weighted average position (must calculate before updating impressions)
+        existing.position =
+          (existing.position * existingImpressions +
+            row.position * row.impressions) /
+          totalImpressions;
 
         existing.impressions = totalImpressions;
         existing.clicks = totalClicks;
         existing.ctr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
-        // Weighted average position
-        existing.position =
-          (existing.position * existing.impressions +
-            row.position * row.impressions) /
-          totalImpressions;
       } else {
         queryMap.set(query, { ...row, keys: [query] });
       }
