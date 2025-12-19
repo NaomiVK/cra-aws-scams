@@ -102,21 +102,12 @@
               </div>
             </div>
           </div>
-          <div class="col-6">
-            <div class="card kpi-card h-100" ngbTooltip="Total number of queries flagged as potentially scam-related">
-              <div class="card-body text-center py-3">
-                <i class="bi bi-flag-fill text-secondary fs-2"></i>
-                <div class="kpi-value mt-2">{{ dashboardData()!.summary.total }}</div>
-                <div class="kpi-label">Total Flagged</div>
-              </div>
-            </div>
-          </div>
-          <div class="col-6">
+          <div class="col-12">
             <div class="card kpi-card h-100" ngbTooltip="Total unique search queries analyzed from Google Search Console">
               <div class="card-body text-center py-3">
                 <i class="bi bi-search text-primary fs-2"></i>
                 <div class="kpi-value mt-2">{{ dashboardData()!.totalQueriesAnalyzed | number }}</div>
-                <div class="kpi-label">Analyzed</div>
+                <div class="kpi-label">Queries Analyzed</div>
               </div>
             </div>
           </div>
@@ -160,8 +151,8 @@
                 <i class="bi bi-shield-exclamation text-warning me-2" aria-hidden="true"></i>
                 Emerging Threats
               </h5>
-              <p class="text-muted mb-0 small" ngbTooltip="New or growing queries with low CTR at good positions - indicates users may be clicking scam sites instead">
-                Potential new scam terms detected via CTR anomaly analysis
+              <p class="text-muted mb-0 small" ngbTooltip="Detected via AI semantic matching, CTR anomalies, velocity patterns, and regex pattern matching">
+                Potential scam terms identified through multi-signal analysis
               </p>
             </div>
             <div class="d-flex align-items-center gap-3">
