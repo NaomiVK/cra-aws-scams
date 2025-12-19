@@ -40,6 +40,7 @@
     "openai": "^6.10.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "~7.8.0",
+    "snoowrap": "^1.23.0",
     "string-similarity": "^4.0.4",
     "uuid": "^13.0.0",
     "xlsx": "^0.18.5",

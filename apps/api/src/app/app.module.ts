@@ -13,6 +13,8 @@ import {
   EmbeddingService,
   AwsConfigService,
   DynamoDbService,
+  SentimentService,
+  RedditService,
 } from '../services';
 
 // Controllers
@@ -23,6 +25,7 @@ import {
   TrendsController,
   ExportController,
   ConfigController,
+  RedditController,
 } from '../controllers';
 
 @Module({
@@ -35,6 +38,7 @@ import {
     TrendsController,
     ExportController,
     ConfigController,
+    RedditController,
   ],
   providers: [
     AppService,
@@ -47,6 +51,8 @@ import {
     TrendsService,
     EmergingThreatService,
     EmbeddingService,
+    SentimentService,
+    RedditService,
   ],
 })
 export class AppModule {}

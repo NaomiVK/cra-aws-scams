@@ -1,32 +1,408 @@
 <div class="container-fluid py-4">
-  <h1 class="mb-4">Social Listening</h1>
-  <p class="text-muted mb-4">Monitor Reddit, X (Twitter), and other platforms for CRA-related scam discussions.</p>
-
-  <div class="alert alert-info d-flex align-items-center">
-    <i class="bi bi-info-circle me-2 fs-4"></i>
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <strong>Coming Soon</strong> - Reddit and X API integration for real-time social monitoring of CRA scam discussions.
+      <h1 class="h3 mb-1">
+        <i class="bi bi-reddit me-2"></i>Reddit Social Listening
+      </h1>
+      <p class="text-muted mb-0">
+        Monitor CRA-related discussions across Canadian subreddits
+      </p>
+    </div>
+
+    <div class="d-flex align-items-center gap-3">
+      <!-- Service status badge -->
+      @if (serviceReady()) {
+        <span class="badge bg-success">
+          <i class="bi bi-check-circle me-1"></i>Connected
+        </span>
+      } @else {
+        <span class="badge bg-warning text-dark">
+          <i class="bi bi-exclamation-triangle me-1"></i>Not Configured
+        </span>
+      }
+
+      <!-- Days selector -->
+      <div class="btn-group" role="group">
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="selectedDays() === 7"
+          [class.btn-outline-secondary]="selectedDays() !== 7"
+          (click)="onDaysChange(7)"
+        >
+          7 Days
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="selectedDays() === 14"
+          [class.btn-outline-secondary]="selectedDays() !== 14"
+          (click)="onDaysChange(14)"
+        >
+          14 Days
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="selectedDays() === 30"
+          [class.btn-outline-secondary]="selectedDays() !== 30"
+          (click)="onDaysChange(30)"
+        >
+          30 Days
+        </button>
+      </div>
+
+      <!-- Fetch button -->
+      <button
+        class="btn btn-primary"
+        (click)="fetchFreshData()"
+        [disabled]="fetching() || !serviceReady()"
+        ngbTooltip="Fetch fresh data from Reddit"
+      >
+        @if (fetching()) {
+          <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+          Fetching...
+        } @else {
+          <i class="bi bi-arrow-clockwise me-1"></i>Fetch Data
+        }
+      </button>
     </div>
   </div>
 
-  <div class="row mt-4">
-    <div class="col-md-6 mb-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h5 class="card-title"><i class="bi bi-reddit me-2"></i>Reddit Monitoring</h5>
-          <p class="card-text text-muted">Track discussions in r/PersonalFinanceCanada, r/canada, and other relevant subreddits for scam reports.</p>
-          <span class="badge bg-secondary">Planned</span>
+  <!-- Error Alert -->
+  @if (error()) {
+    <div class="alert alert-danger d-flex align-items-center mb-4">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      <div>{{ error() }}</div>
+      <button type="button" class="btn-close ms-auto" (click)="error.set(null)"></button>
+    </div>
+  }
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <div class="d-flex justify-content-center align-items-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <span class="ms-3">Loading Reddit data...</span>
+    </div>
+  } @else {
+    <!-- Stats Overview Cards -->
+    <div class="row g-3 mb-4">
+      <!-- Total Posts -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 stat-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted small mb-1">Total Posts</p>
+                <h2 class="mb-0">{{ totalPosts() }}</h2>
+              </div>
+              <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                <i class="bi bi-chat-square-text"></i>
+              </div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">
+              Last {{ selectedDays() }} days
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Negative Sentiment -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 stat-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted small mb-1">Negative Sentiment</p>
+                <h2 class="mb-0" [class.text-danger]="negativePct() > 50">
+                  {{ negativePct() }}%
+                </h2>
+              </div>
+              <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+                <i class="bi bi-emoji-frown"></i>
+              </div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">
+              {{ sentimentSummary()?.negative_count || 0 }} negative posts
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subreddits Monitored -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 stat-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted small mb-1">Subreddits Monitored</p>
+                <h2 class="mb-0">{{ subredditCount() }}</h2>
+              </div>
+              <div class="stat-icon bg-info bg-opacity-10 text-info">
+                <i class="bi bi-collection"></i>
+              </div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">Active communities</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Issue -->
+      <div class="col-md-6 col-lg-3">
+        <div class="card h-100 stat-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted small mb-1">Most Active</p>
+                <h2 class="mb-0 h5">
+                  @if (topIssue()) {
+                    r/{{ topIssue()?.subreddit }}
+                  } @else {
+                    --
+                  }
+                </h2>
+              </div>
+              <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                <i class="bi bi-graph-up"></i>
+              </div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">
+              @if (topIssue()) {
+                {{ topIssue()?.total_posts }} posts
+              } @else {
+                No data
+              }
+            </p>
+          </div>
         </div>
       </div>
     </div>
-    <div class="col-md-6 mb-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <h5 class="card-title"><i class="bi bi-twitter-x me-2"></i>X (Twitter) Monitoring</h5>
-          <p class="card-text text-muted">Monitor tweets mentioning CRA scams, phishing attempts, and fraud warnings.</p>
-          <span class="badge bg-secondary">Planned</span>
+
+    <!-- Main Content: Posts and Subreddit Summary -->
+    <div class="row g-4">
+      <!-- Active Posts -->
+      <div class="col-lg-7">
+        <div class="card h-100">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi bi-chat-left-text me-2"></i>Recent Posts
+            </h5>
+            <!-- Subreddit filter -->
+            <select
+              class="form-select form-select-sm"
+              style="width: auto;"
+              [ngModel]="selectedSubreddit()"
+              (ngModelChange)="onSubredditFilter($event)"
+            >
+              <option [ngValue]="null">All Subreddits</option>
+              @for (sr of monitoredSubreddits; track sr) {
+                <option [ngValue]="sr">r/{{ sr }}</option>
+              }
+            </select>
+          </div>
+          <div class="card-body p-0">
+            <div class="post-list">
+              @for (post of filteredPosts(); track post.id) {
+                <div
+                  class="post-item"
+                  (click)="openPostModal(post, postModal)"
+                  role="button"
+                >
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1 me-3">
+                      <h6 class="post-title mb-1">{{ post.title }}</h6>
+                      <div class="post-meta text-muted small">
+                        <span class="me-2">
+                          <i class="bi bi-reddit me-1"></i>r/{{ post.subreddit }}
+                        </span>
+                        <span class="me-2">
+                          <i class="bi bi-person me-1"></i>u/{{ post.author }}
+                        </span>
+                        <span>
+                          <i class="bi bi-clock me-1"></i>{{ getRelativeTime(post.created_utc) }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="d-flex flex-column align-items-end">
+                      <span
+                        class="badge mb-1"
+                        [ngClass]="getSentimentBadgeClass(post.sentiment)"
+                      >
+                        <i [class]="getSentimentIcon(post.sentiment)" class="me-1"></i>
+                        {{ post.sentiment || 'pending' }}
+                      </span>
+                      <div class="post-stats text-muted small">
+                        <span class="me-2">
+                          <i class="bi bi-arrow-up"></i> {{ post.score }}
+                        </span>
+                        <span>
+                          <i class="bi bi-chat"></i> {{ post.num_comments }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              } @empty {
+                <div class="text-center text-muted py-5">
+                  <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                  <p class="mb-0">No posts found</p>
+                  <p class="small">Try fetching fresh data from Reddit</p>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subreddit Summary -->
+      <div class="col-lg-5">
+        <div class="card h-100">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="bi bi-bar-chart me-2"></i>Subreddit Summary
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="subreddit-list">
+              @for (stat of subredditStats(); track stat.subreddit) {
+                <div class="subreddit-item">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-primary">r/{{ stat.subreddit }}</h6>
+                    <span
+                      class="badge"
+                      [ngClass]="getSentimentBadgeClass(stat.avg_sentiment)"
+                    >
+                      {{ stat.avg_sentiment }}
+                    </span>
+                  </div>
+                  <div class="row text-center g-2">
+                    <div class="col-4">
+                      <div class="stat-mini">
+                        <div class="fw-bold">{{ stat.total_posts }}</div>
+                        <div class="text-muted small">Posts</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="stat-mini">
+                        <div class="fw-bold">{{ stat.total_comments }}</div>
+                        <div class="text-muted small">Comments</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="stat-mini">
+                        <div class="fw-bold">{{ stat.engagement_rate | number:'1.1-1' }}</div>
+                        <div class="text-muted small">Engagement</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sentiment-bar mt-2">
+                    <div
+                      class="sentiment-segment bg-success"
+                      [style.width.%]="(stat.sentiment_breakdown.positive / (stat.total_posts || 1)) * 100"
+                      ngbTooltip="Positive: {{ stat.sentiment_breakdown.positive }}"
+                    ></div>
+                    <div
+                      class="sentiment-segment bg-secondary"
+                      [style.width.%]="(stat.sentiment_breakdown.neutral / (stat.total_posts || 1)) * 100"
+                      ngbTooltip="Neutral: {{ stat.sentiment_breakdown.neutral }}"
+                    ></div>
+                    <div
+                      class="sentiment-segment bg-danger"
+                      [style.width.%]="(stat.sentiment_breakdown.negative / (stat.total_posts || 1)) * 100"
+                      ngbTooltip="Negative: {{ stat.sentiment_breakdown.negative }}"
+                    ></div>
+                  </div>
+                </div>
+              } @empty {
+                <div class="text-center text-muted py-4">
+                  <i class="bi bi-bar-chart fs-1 d-block mb-2"></i>
+                  <p class="mb-0">No subreddit data</p>
+                </div>
+              }
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+
+    <!-- Last updated -->
+    @if (lastFetched()) {
+      <div class="text-muted small text-end mt-3">
+        <i class="bi bi-clock me-1"></i>
+        Last updated: {{ formatDate(lastFetched()!) }}
+      </div>
+    }
+  }
 </div>
+
+<!-- Post Detail Modal -->
+<ng-template #postModal let-modal>
+  @if (selectedPost(); as post) {
+    <div class="modal-header">
+      <h5 class="modal-title">{{ post.title }}</h5>
+      <button type="button" class="btn-close" (click)="modal.dismiss()"></button>
+    </div>
+    <div class="modal-body">
+      <!-- Post metadata -->
+      <div class="d-flex flex-wrap gap-3 mb-3 text-muted small">
+        <span>
+          <i class="bi bi-reddit me-1"></i>r/{{ post.subreddit }}
+        </span>
+        <span>
+          <i class="bi bi-person me-1"></i>u/{{ post.author }}
+        </span>
+        <span>
+          <i class="bi bi-clock me-1"></i>{{ formatDate(post.created_utc) }}
+        </span>
+      </div>
+
+      <!-- Engagement stats -->
+      <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded">
+        <div class="d-flex gap-4">
+          <div>
+            <i class="bi bi-arrow-up text-success me-1"></i>
+            <strong>{{ post.score }}</strong> upvotes
+          </div>
+          <div>
+            <i class="bi bi-chat text-primary me-1"></i>
+            <strong>{{ post.num_comments }}</strong> comments
+          </div>
+        </div>
+        <span
+          class="badge"
+          [ngClass]="getSentimentBadgeClass(post.sentiment)"
+        >
+          <i [class]="getSentimentIcon(post.sentiment)" class="me-1"></i>
+          {{ post.sentiment || 'pending' }}
+          @if (post.sentiment_confidence) {
+            ({{ (post.sentiment_confidence * 100) | number:'1.0-0' }}%)
+          }
+        </span>
+      </div>
+
+      <!-- Post content -->
+      @if (post.content) {
+        <div class="post-content p-3 bg-light rounded">
+          <p class="mb-0" style="white-space: pre-wrap;">{{ post.content }}</p>
+        </div>
+      } @else {
+        <div class="text-muted text-center py-3">
+          <i class="bi bi-link-45deg me-1"></i>This is a link post (no text content)
+        </div>
+      }
+    </div>
+    <div class="modal-footer">
+      <a
+        [href]="post.url"
+        target="_blank"
+        class="btn btn-outline-primary"
+      >
+        <i class="bi bi-box-arrow-up-right me-1"></i>View on Reddit
+      </a>
+      <button type="button" class="btn btn-secondary" (click)="modal.close()">Close</button>
+    </div>
+  }
+</ng-template>

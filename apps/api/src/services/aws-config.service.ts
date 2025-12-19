@@ -69,6 +69,10 @@ export class AwsConfigService implements OnModuleInit {
     this.secrets = {
       GOOGLE_MAPS_API_KEY: process.env['GOOGLE_MAPS_API_KEY'] || '',
       OPENAI_API_KEY: process.env['OPENAI_API_KEY'] || '',
+      REDDIT_CLIENT_ID: process.env['REDDIT_CLIENT_ID'] || '',
+      REDDIT_CLIENT_SECRET: process.env['REDDIT_CLIENT_SECRET'] || '',
+      REDDIT_USERNAME: process.env['REDDIT_USERNAME'] || '',
+      REDDIT_PASSWORD: process.env['REDDIT_PASSWORD'] || '',
     };
   }
 
@@ -82,6 +86,10 @@ export class AwsConfigService implements OnModuleInit {
         '/cra-scam/GOOGLE_MAPS_API_KEY',
         '/cra-scam/OPENAI_API_KEY',
         '/cra-scam/GSC_SERVICE_ACCOUNT',
+        '/cra-scam/REDDIT_CLIENT_ID',
+        '/cra-scam/REDDIT_CLIENT_SECRET',
+        '/cra-scam/REDDIT_USERNAME',
+        '/cra-scam/REDDIT_PASSWORD',
       ];
 
       for (const paramName of parameterNames) {
@@ -122,6 +130,22 @@ export class AwsConfigService implements OnModuleInit {
 
   getGscServiceAccount(): string {
     return this.getSecret('GSC_SERVICE_ACCOUNT');
+  }
+
+  getRedditClientId(): string {
+    return this.getSecret('REDDIT_CLIENT_ID');
+  }
+
+  getRedditClientSecret(): string {
+    return this.getSecret('REDDIT_CLIENT_SECRET');
+  }
+
+  getRedditUsername(): string {
+    return this.getSecret('REDDIT_USERNAME');
+  }
+
+  getRedditPassword(): string {
+    return this.getSecret('REDDIT_PASSWORD');
   }
 
   getDynamoDbClient(): DynamoDBDocumentClient | null {

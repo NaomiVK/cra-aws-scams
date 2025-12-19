@@ -13,6 +13,9 @@ import {
   ScamKeywordsConfig,
   InterestByRegionResponse,
   ExcludedTermsResponse,
+  RedditPostsResponse,
+  RedditStatsResponse,
+  RedditPost,
 } from '@cra-scam-detection/shared-types';
 import { environment } from '../../environments/environment';
 
@@ -232,6 +235,95 @@ export class ApiService {
     return this.http.post<ApiResponse<{ message: string }>>(
       `${this.baseUrl}/scams/excluded`,
       { term, category }
+    );
+  }
+
+  // ==================== REDDIT ====================
+
+  /**
+   * Get Reddit posts with optional filters
+   */
+  getRedditPosts(options?: {
+    days?: number;
+    limit?: number;
+    source?: 'live' | 'db';
+  }): Observable<ApiResponse<RedditPostsResponse>> {
+    let params = new HttpParams();
+    if (options?.days) params = params.set('days', options.days.toString());
+    if (options?.limit) params = params.set('limit', options.limit.toString());
+    if (options?.source) params = params.set('source', options.source);
+
+    return this.http.get<ApiResponse<RedditPostsResponse>>(
+      `${this.baseUrl}/reddit/posts`,
+      { params }
+    );
+  }
+
+  /**
+   * Get posts for a specific subreddit
+   */
+  getRedditPostsBySubreddit(
+    subreddit: string,
+    limit?: number
+  ): Observable<ApiResponse<RedditPost[]>> {
+    let params = new HttpParams();
+    if (limit) params = params.set('limit', limit.toString());
+
+    return this.http.get<ApiResponse<RedditPost[]>>(
+      `${this.baseUrl}/reddit/posts/${subreddit}`,
+      { params }
+    );
+  }
+
+  /**
+   * Fetch fresh Reddit data and save to database
+   */
+  fetchRedditData(limit?: number): Observable<ApiResponse<{ posts: number; saved: number }>> {
+    let params = new HttpParams();
+    if (limit) params = params.set('limit', limit.toString());
+
+    return this.http.post<ApiResponse<{ posts: number; saved: number }>>(
+      `${this.baseUrl}/reddit/fetch`,
+      {},
+      { params }
+    );
+  }
+
+  /**
+   * Get Reddit statistics and sentiment summary
+   */
+  getRedditStats(days?: number): Observable<ApiResponse<RedditStatsResponse>> {
+    let params = new HttpParams();
+    if (days) params = params.set('days', days.toString());
+
+    return this.http.get<ApiResponse<RedditStatsResponse>>(
+      `${this.baseUrl}/reddit/stats`,
+      { params }
+    );
+  }
+
+  /**
+   * Search Reddit posts by keywords
+   */
+  searchRedditPosts(
+    keywords: string[],
+    limit?: number
+  ): Observable<ApiResponse<RedditPost[]>> {
+    let params = new HttpParams().set('keywords', keywords.join(','));
+    if (limit) params = params.set('limit', limit.toString());
+
+    return this.http.get<ApiResponse<RedditPost[]>>(
+      `${this.baseUrl}/reddit/search`,
+      { params }
+    );
+  }
+
+  /**
+   * Get Reddit service status
+   */
+  getRedditStatus(): Observable<ApiResponse<{ redditReady: boolean; subreddits: string[] }>> {
+    return this.http.get<ApiResponse<{ redditReady: boolean; subreddits: string[] }>>(
+      `${this.baseUrl}/reddit/status`
     );
   }
 }

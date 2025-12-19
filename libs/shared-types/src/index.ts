@@ -6,3 +6,6 @@ export * from './lib/scam-detection.types';
 
 // Google Trends Types
 export * from './lib/trends.types';
+
+// Reddit Social Listening Types
+export * from './lib/reddit.types';
