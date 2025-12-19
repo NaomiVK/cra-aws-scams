@@ -468,7 +468,7 @@ export class DynamoDbService implements OnModuleInit {
    */
   async getRedditPostsBySubreddit(
     subreddit: string,
-    limit: number = 25,
+    limit = 25,
   ): Promise<RedditPost[]> {
     if (!this.initialized) return [];
 
@@ -496,7 +496,7 @@ export class DynamoDbService implements OnModuleInit {
   /**
    * Get all recent Reddit posts across all subreddits
    */
-  async getAllRedditPosts(limit: number = 100): Promise<RedditPost[]> {
+  async getAllRedditPosts(limit = 100): Promise<RedditPost[]> {
     if (!this.initialized) return [];
 
     const client = this.awsConfigService.getDynamoDbClient();
@@ -525,7 +525,7 @@ export class DynamoDbService implements OnModuleInit {
   /**
    * Get Reddit posts from the last N days
    */
-  async getRecentRedditPosts(days: number = 7): Promise<RedditPost[]> {
+  async getRecentRedditPosts(days = 7): Promise<RedditPost[]> {
     if (!this.initialized) return [];
 
     const client = this.awsConfigService.getDynamoDbClient();

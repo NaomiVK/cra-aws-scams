@@ -39,7 +39,7 @@ export class SentimentService implements OnModuleInit {
   /**
    * Analyze sentiment of a single text
    */
-  async analyzeSentiment(text: string, postId?: string): Promise<SentimentResult> {
+  async analyzeSentiment(text: string, _postId?: string): Promise<SentimentResult> {
     // Check cache first
     const cacheKey = `sentiment:${this.hashText(text)}`;
     const cached = this.cacheService.get<SentimentResult>(cacheKey);

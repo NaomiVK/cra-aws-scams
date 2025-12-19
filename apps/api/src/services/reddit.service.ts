@@ -128,7 +128,7 @@ export class RedditService implements OnModuleInit {
    */
   async getSubredditPosts(
     subreddit: string,
-    limit: number = 25,
+    limit = 25,
     timeFilter: 'hour' | 'day' | 'week' | 'month' | 'year' | 'all' = 'week',
   ): Promise<RedditPost[]> {
     if (!this.reddit || !this.initialized) {
@@ -167,8 +167,8 @@ export class RedditService implements OnModuleInit {
    * Get posts from all monitored subreddits using keyword search
    */
   async getAllMonitoredPosts(
-    limit: number = 10,
-    withSentiment: boolean = true,
+    limit = 10,
+    withSentiment = true,
   ): Promise<RedditPost[]> {
     if (!this.reddit || !this.initialized) {
       this.logger.warn('Reddit service not initialized');
@@ -266,7 +266,7 @@ export class RedditService implements OnModuleInit {
   async searchPosts(
     keywords: string[],
     subreddits: string[] = [...MONITORED_SUBREDDITS],
-    limit: number = 50,
+    limit = 50,
   ): Promise<RedditPost[]> {
     if (!this.reddit || !this.initialized) {
       this.logger.warn('Reddit service not initialized');
@@ -311,7 +311,7 @@ export class RedditService implements OnModuleInit {
    * Fetch fresh data from Reddit and save to DynamoDB
    */
   async fetchAndSaveData(
-    limit: number = 25,
+    limit = 25,
   ): Promise<{ posts: RedditPost[]; saved: number }> {
     const posts = await this.getAllMonitoredPosts(limit, true);
 
