@@ -116,11 +116,13 @@ export class ScamDetectionService implements OnModuleInit {
       // Load ALL seed phrases from DynamoDB (excludes whitelist and seen-term)
       // These are used for Dashboard detection
       const dbSeedPhrases = await this.dynamoDbService.getAllSeedPhrases();
-      this.allSeedPhrases = dbSeedPhrases.map(record => ({
-        term: record.term.toLowerCase(),
-        category: record.category,
-        severity: record.severity,
-      }));
+      this.allSeedPhrases = dbSeedPhrases
+        .filter(record => record.term) // Skip records with missing term
+        .map(record => ({
+          term: record.term.toLowerCase(),
+          category: record.category,
+          severity: record.severity || 'medium',
+        }));
       this.logger.log(`[STARTUP] Loaded ${this.allSeedPhrases.length} seed phrases for Dashboard matching`);
 
     } catch (error) {
