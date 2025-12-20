@@ -83,7 +83,7 @@ export class AwsConfigService implements OnModuleInit {
       this.secretsManagerClient = new SecretsManagerClient({ region: this.region });
 
       const command = new GetSecretValueCommand({
-        SecretId: 'cra-scam-detection/api-keys',
+        SecretId: 'prod/cra-scam/api-keys',
       });
 
       const response = await this.secretsManagerClient.send(command);
