@@ -32,7 +32,7 @@ export class SearchConsoleService implements OnModuleInit {
 
   /**
    * Initialize Google Search Console API client
-   * In production: loads credentials from AWS Parameter Store
+   * In production: loads credentials from AWS Secrets Manager
    * In development: loads credentials from local file
    */
   private async initializeClient(): Promise<void> {
@@ -40,17 +40,17 @@ export class SearchConsoleService implements OnModuleInit {
       let auth: InstanceType<typeof google.auth.GoogleAuth>;
 
       if (environment.production) {
-        // Production: load credentials from AWS Parameter Store
+        // Production: load credentials from AWS Secrets Manager
         // Wait for AwsConfigService to finish loading secrets
         await this.awsConfigService.ready;
 
         const credentialsJson = this.awsConfigService.getGscServiceAccount();
 
         if (!credentialsJson) {
-          throw new Error('GSC_SERVICE_ACCOUNT not found in AWS Parameter Store');
+          throw new Error('GSC_SERVICE_ACCOUNT not found in AWS Secrets Manager');
         }
 
-        this.logger.log('Loading GSC credentials from AWS Parameter Store');
+        this.logger.log('Loading GSC credentials from AWS Secrets Manager');
         const credentials = JSON.parse(credentialsJson);
 
         auth = new google.auth.GoogleAuth({

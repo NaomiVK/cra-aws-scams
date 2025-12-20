@@ -1,36 +1,24 @@
-# Output values after terraform apply
-
-output "ec2_public_ip" {
-  description = "Public IP address of the EC2 instance"
-  value       = aws_instance.app_server.public_ip
+output "cloudfront_distribution_id" {
+  description = "The ID of the CloudFront distribution"
+  value       = aws_cloudfront_distribution.frontend.id
 }
 
-output "ec2_public_dns" {
-  description = "Public DNS of the EC2 instance"
-  value       = aws_instance.app_server.public_dns
+output "cloudfront_domain_name" {
+  description = "The domain name of the CloudFront distribution"
+  value       = aws_cloudfront_distribution.frontend.domain_name
 }
 
-output "ec2_instance_id" {
-  description = "EC2 instance ID"
-  value       = aws_instance.app_server.id
+output "cloudfront_url" {
+  description = "The full URL of the CloudFront distribution"
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
 }
 
-output "dynamodb_table_name" {
-  description = "DynamoDB table name for seed phrases"
-  value       = aws_dynamodb_table.seed_phrases.name
+output "s3_bucket_name" {
+  description = "The S3 bucket name"
+  value       = data.aws_s3_bucket.frontend.id
 }
 
-output "dynamodb_table_arn" {
-  description = "DynamoDB table ARN"
-  value       = aws_dynamodb_table.seed_phrases.arn
-}
-
-output "app_url" {
-  description = "Application URL"
-  value       = "http://${aws_instance.app_server.public_ip}:${var.app_port}"
-}
-
-output "ssh_command" {
-  description = "SSH command to connect to the instance"
-  value       = "ssh -i ${var.key_pair_name}.pem ec2-user@${aws_instance.app_server.public_ip}"
+output "environment" {
+  description = "The deployment environment"
+  value       = var.environment
 }
