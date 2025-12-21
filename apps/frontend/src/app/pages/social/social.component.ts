@@ -99,7 +99,7 @@ export class SocialComponent implements OnInit {
     try {
       // Load posts and stats in parallel
       const [postsResponse, statsResponse] = await Promise.all([
-        firstValueFrom(this.api.getRedditPosts({ days: this.selectedDays(), limit: 10 })),
+        firstValueFrom(this.api.getRedditPosts({ days: this.selectedDays(), source: 'db' })),
         firstValueFrom(this.api.getRedditStats(this.selectedDays())),
       ]);
 
