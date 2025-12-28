@@ -7,7 +7,8 @@
       "Bash(npm run lint:*)",
       "Bash(rm:*)",
       "Bash(npx nx lint:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

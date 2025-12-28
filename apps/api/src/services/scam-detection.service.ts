@@ -243,14 +243,26 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   /**
-   * Check if query exactly matches an existing seed phrase
+   * Check if query exactly matches an existing keyword or seed phrase
    * Used for filtering emerging threats that have already been added
    */
   isExactKeywordMatch(query: string): boolean {
     const normalizedQuery = query.toLowerCase().trim();
-    return this.allSeedPhrases.some(
+
+    // Check DynamoDB seed phrases
+    const inDynamoDB = this.allSeedPhrases.some(
       (phrase) => phrase.term.toLowerCase().trim() === normalizedQuery
     );
+    if (inDynamoDB) return true;
+
+    // Also check local keywords config (scam-keywords.json)
+    for (const category of Object.values(this.keywordsConfig.categories)) {
+      if (category.terms.some(term => term.toLowerCase().trim() === normalizedQuery)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

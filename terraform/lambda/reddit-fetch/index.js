@@ -4,7 +4,7 @@
  *
  * Environment variables:
  * - API_URL: The EC2 API URL (e.g., http://ec2-18-224-162-99.us-east-2.compute.amazonaws.com:3000)
- * - FETCH_LIMIT: Number of posts to fetch per search term (default: 100)
+ * - FETCH_LIMIT: Number of posts to fetch per search term (default: 20)
  */
 
 const http = require('http');
@@ -12,7 +12,7 @@ const https = require('https');
 
 exports.handler = async (event) => {
   const apiUrl = process.env.API_URL;
-  const fetchLimit = process.env.FETCH_LIMIT || '100';
+  const fetchLimit = process.env.FETCH_LIMIT || '20';
 
   if (!apiUrl) {
     console.error('API_URL environment variable is not set');

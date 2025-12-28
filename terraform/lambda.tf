@@ -39,7 +39,7 @@ resource "aws_lambda_function" "reddit_fetch" {
   environment {
     variables = {
       API_URL     = "http://${var.api_domain}:${var.api_port}"
-      FETCH_LIMIT = "100"
+      FETCH_LIMIT = "20"
     }
   }
 }
