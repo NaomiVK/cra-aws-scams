@@ -232,8 +232,8 @@ export class ComparisonComponent implements OnInit {
   }
 
   getChangeClass(change: number): string {
-    if (change > 0) return 'text-danger';
-    if (change < 0) return 'text-success';
+    if (change > 0) return 'text-success';
+    if (change < 0) return 'text-danger';
     return 'text-muted';
   }
 
@@ -253,7 +253,7 @@ export class ComparisonComponent implements OnInit {
     if (!data) return [];
     const sortOrder = this.newTermsSort();
     return data.terms
-      .filter(t => t.isNew && t.current.impressions >= 300)
+      .filter(t => t.isNew && t.current.impressions >= 500)
       .sort((a, b) => sortOrder === 'desc'
         ? b.current.impressions - a.current.impressions
         : a.current.impressions - b.current.impressions);
