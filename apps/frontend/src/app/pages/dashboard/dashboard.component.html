@@ -58,16 +58,38 @@
             @for (term of dashboardData()!.criticalAlerts; track term.query) {
               <div class="alert-item">
                 <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <strong>{{ term.query }}</strong>
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2">
+                      <strong>{{ term.query }}</strong>
+                      @if (term.isNew) {
+                        <span class="badge bg-info text-white small-badge" ngbTooltip="First time appearing in this period">NEW</span>
+                      }
+                    </div>
                     <div class="small text-muted" ngbTooltip="Matched scam patterns">
                       {{ term.matchedPatterns.join(', ') }}
                     </div>
                   </div>
-                  <div class="text-end">
-                    <span class="badge bg-danger" ngbTooltip="Total impressions in selected period">{{ term.impressions | number }} imp</span>
-                    <div class="small text-muted">CTR: {{ (term.ctr * 100).toFixed(1) }}%</div>
-                  </div>
+                  <table class="metrics-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Current</th>
+                        <th>Previous</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td class="metric-label">Impressions</td>
+                        <td class="metric-value">{{ term.impressions | number }}</td>
+                        <td class="metric-value text-muted">{{ term.previous ? (term.previous.impressions | number) : '-' }}</td>
+                      </tr>
+                      <tr>
+                        <td class="metric-label">Position</td>
+                        <td class="metric-value">{{ term.position | number:'1.1-1' }}</td>
+                        <td class="metric-value text-muted">{{ term.previous ? (term.previous.position | number:'1.1-1') : '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             } @empty {
@@ -115,7 +137,64 @@
       </div>
     </div>
 
-    <!-- Emerging Threats Summary Card -->
+    <!-- High Priority Alerts Panel -->
+    @if (dashboardData()!.highAlerts && dashboardData()!.highAlerts.length > 0) {
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center" ngbTooltip="Queries matching high severity patterns - review promptly">
+              <h5 class="mb-0">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                High Priority Alerts
+              </h5>
+              <span class="badge bg-dark text-warning fs-6">{{ dashboardData()!.highAlerts.length }}</span>
+            </div>
+            <div class="card-body alert-panel p-0">
+              @for (term of dashboardData()!.highAlerts; track term.query) {
+                <div class="alert-item">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center gap-2">
+                        <strong>{{ term.query }}</strong>
+                        @if (term.isNew) {
+                          <span class="badge bg-info text-white small-badge" ngbTooltip="First time appearing in this period">NEW</span>
+                        }
+                      </div>
+                      <div class="small text-muted" ngbTooltip="Matched scam patterns">
+                        {{ term.matchedPatterns.join(', ') }}
+                      </div>
+                    </div>
+                    <table class="metrics-table">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th>Current</th>
+                          <th>Previous</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td class="metric-label">Impressions</td>
+                          <td class="metric-value">{{ term.impressions | number }}</td>
+                          <td class="metric-value text-muted">{{ term.previous ? (term.previous.impressions | number) : '-' }}</td>
+                        </tr>
+                        <tr>
+                          <td class="metric-label">Position</td>
+                          <td class="metric-value">{{ term.position | number:'1.1-1' }}</td>
+                          <td class="metric-value text-muted">{{ term.previous ? (term.previous.position | number:'1.1-1') : '-' }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Emerging Scams Summary Card -->
     @if (loadingEmergingThreats()) {
       <div class="card border-warning" aria-live="polite" aria-busy="true">
         <div class="card-body text-center py-4">
@@ -132,7 +211,7 @@
             <div>
               <h5 class="card-title mb-1 text-danger">
                 <i class="bi bi-exclamation-circle me-2"></i>
-                Failed to Load Emerging Threats
+                Failed to Load Emerging Scams
               </h5>
               <p class="text-muted mb-0 small">{{ emergingThreatsError() }}</p>
             </div>
@@ -149,7 +228,7 @@
             <div>
               <h5 class="card-title mb-1">
                 <i class="bi bi-shield-exclamation text-warning me-2" aria-hidden="true"></i>
-                Emerging Threats
+                Emerging Scams
               </h5>
               <p class="text-muted mb-0 small" ngbTooltip="Detected via AI semantic matching, CTR anomalies, velocity patterns, and regex pattern matching">
                 Potential scam terms identified through multi-signal analysis

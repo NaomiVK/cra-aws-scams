@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CRA Scam Detection System - Documentation</title>
+<style>
+  body {
+    font-family: Calibri, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    max-width: 8.5in;
+    margin: 1in auto;
+    padding: 0 0.5in;
+  }
+  h1 {
+    font-size: 24pt;
+    color: #1a365d;
+    border-bottom: 3px solid #1a365d;
+    padding-bottom: 10px;
+    page-break-before: always;
+  }
+  h1:first-of-type {
+    page-break-before: avoid;
+  }
+  h2 {
+    font-size: 18pt;
+    color: #2c5282;
+    border-bottom: 1px solid #2c5282;
+    margin-top: 30px;
+  }
+  h3 {
+    font-size: 14pt;
+    color: #2d3748;
+    margin-top: 20px;
+  }
+  h4 {
+    font-size: 12pt;
+    color: #4a5568;
+    margin-top: 15px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+    font-size: 10pt;
+  }
+  th, td {
+    border: 1px solid #cbd5e0;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  th {
+    background-color: #edf2f7;
+    font-weight: bold;
+  }
+  tr:nth-child(even) {
+    background-color: #f7fafc;
+  }
+  code {
+    font-family: Consolas, Monaco, monospace;
+    background-color: #f7fafc;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10pt;
+  }
+  pre {
+    background-color: #1a202c;
+    color: #e2e8f0;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 9pt;
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+  .toc {
+    background-color: #f7fafc;
+    padding: 20px;
+    border-radius: 5px;
+    margin: 20px 0;
+  }
+  .toc a {
+    color: #2c5282;
+    text-decoration: none;
+  }
+  .toc a:hover {
+    text-decoration: underline;
+  }
+  .note {
+    background-color: #ebf8ff;
+    border-left: 4px solid #3182ce;
+    padding: 10px 15px;
+    margin: 15px 0;
+  }
+  .warning {
+    background-color: #fffaf0;
+    border-left: 4px solid #dd6b20;
+    padding: 10px 15px;
+    margin: 15px 0;
+  }
+  .critical {
+    color: #c53030;
+    font-weight: bold;
+  }
+  .high {
+    color: #dd6b20;
+    font-weight: bold;
+  }
+  .medium {
+    color: #d69e2e;
+  }
+  .diagram {
+    font-family: Consolas, Monaco, monospace;
+    font-size: 9pt;
+    background-color: #f7fafc;
+    padding: 15px;
+    border: 1px solid #e2e8f0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  ul, ol {
+    margin: 10px 0;
+    padding-left: 25px;
+  }
+  li {
+    margin: 5px 0;
+  }
+  hr {
+    border: none;
+    border-top: 2px solid #e2e8f0;
+    margin: 30px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1 style="page-break-before: avoid; text-align: center;">CRA Scam Detection System</h1>
+<p style="text-align: center; font-size: 14pt; color: #4a5568;">Technical Documentation</p>
+<p style="text-align: center; color: #718096;">Last Updated: January 5, 2026</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ol>
+  <li><a href="#dashboard">Dashboard Tab</a></li>
+  <li><a href="#admin">Admin Console Tab</a>
+    <ul>
+      <li><a href="#emerging">Emerging Threats</a></li>
+      <li><a href="#keywords">Keywords Management</a></li>
+    </ul>
+  </li>
+  <li><a href="#comparison">Comparison Tab</a></li>
+  <li><a href="#trends">Trends Tab</a></li>
+  <li><a href="#social">Social Tab</a></li>
+  <li><a href="#dynamodb">DynamoDB Data Model</a></li>
+  <li><a href="#algorithms">Algorithm Reference</a></li>
+</ol>
+</div>
+
+<hr>
+
+<h1 id="dashboard">1. Dashboard Tab</h1>
+
+<p><strong>Purpose:</strong> Display search terms from Google Search Console that match known scam patterns stored in the database.</p>
+
+<h3>Data Sources</h3>
+<table>
+  <tr><th>Source</th><th>Purpose</th></tr>
+  <tr><td>Google Search Console API</td><td>Raw search query data (impressions, clicks, CTR, position)</td></tr>
+  <tr><td><code>seed-phrases.json</code></td><td>Base seed phrases (loaded at startup)</td></tr>
+  <tr><td>DynamoDB <code>cra-scam-seed-phrases</code></td><td>Additional seed phrases (merged with JSON at startup)</td></tr>
+</table>
+
+<h3>How Detection Works</h3>
+<ol>
+  <li><strong>At server startup</strong>, the system loads seed phrases from TWO sources:
+    <ul>
+      <li>First: <code>seed-phrases.json</code> (base configuration)</li>
+      <li>Then: DynamoDB <code>cra-scam-seed-phrases</code> table (additional/admin-added phrases)</li>
+      <li>These are merged into a single <code>allSeedPhrases</code> array</li>
+    </ul>
+  </li>
+  <li><strong>When a user requests the Dashboard</strong>, queries are fetched from Google Search Console and checked against this merged list</li>
+</ol>
+
+<h4>Server Startup Flow</h4>
+<pre>
+1. loadSeedPhrasesFromJson()
+   → Reads seed-phrases.json
+   → Loads all phrases into allSeedPhrases[] with {term, category, severity}
+
+2. DynamoDbService.getAllSeedPhrases()
+   → Scans DynamoDB table
+   → Excludes 'whitelist' and 'seen-term' categories
+   → Merges with JSON phrases (skips duplicates)
+</pre>
+
+<h4>User Request Flow</h4>
+<pre>
+GET /api/scams/dashboard?startDate=X&endDate=Y
+  → SearchConsoleService.getQueriesAboveThreshold(dateRange, 300)
+  → For each query with 300+ impressions:
+      → checkSeedPhrases(query) - checks if query CONTAINS any seed phrase
+      → If match found → flag the term with seed phrase's severity
+      → Apply seasonal adjustment to severity
+  → Return flagged terms sorted by severity, then impressions
+</pre>
+
+<h3>The Matching Algorithm</h3>
+<pre>
+function checkSeedPhrases(query) {
+  const matched = [];
+  let category = '';
+  let severity = 'medium';
+
+  // allSeedPhrases contains both JSON config + DynamoDB phrases (merged)
+  for (const seedPhrase of allSeedPhrases) {
+    // SUBSTRING MATCH: Does the query contain this seed phrase?
+    if (query.includes(seedPhrase.term)) {
+      matched.push(seedPhrase.term);
+      if (!category) {
+        category = seedPhrase.category;
+        severity = seedPhrase.severity;
+      }
+    }
+  }
+
+  return { matched: matched.length > 0, patterns: matched, category, severity };
+}
+</pre>
+
+<p><strong>Example:</strong> If seed-phrases.json or DynamoDB contains seed phrase <code>"cra bonus"</code> with severity <code>critical</code>:</p>
+<ul>
+  <li>Query <code>"how to get cra bonus 2024"</code> → <strong>FLAGGED</strong> (contains "cra bonus")</li>
+  <li>Query <code>"cra my account login"</code> → <strong>NOT FLAGGED</strong> (doesn't contain any seed phrase)</li>
+</ul>
+
+<h3>What Determines Severity</h3>
+<p><strong>Base Severity:</strong> Comes from the seed phrase's <code>severity</code> field:</p>
+<table>
+  <tr><th>Category</th><th>Severity</th><th>Example Terms</th></tr>
+  <tr><td>fakeExpiredBenefits</td><td class="critical">critical</td><td>"grocery rebate 2024", "cra bonus", "cerb 2025"</td></tr>
+  <tr><td>illegitimatePaymentMethods</td><td class="critical">critical</td><td>"cra gift card", "cra bitcoin", "pay taxes with gift card"</td></tr>
+  <tr><td>threatLanguage</td><td class="high">high</td><td>"cra arrest", "cra warrant", "cra deportation"</td></tr>
+  <tr><td>suspiciousModifiers</td><td class="medium">medium</td><td>"cra claim now", "cra urgent", "cra limited time"</td></tr>
+  <tr><td>scamPatterns</td><td class="high">high</td><td>"cra phone scam", "fake cra call", "cra phishing"</td></tr>
+</table>
+
+<h4>Seasonal Adjustments</h4>
+<pre>
+// Tax Season (March 15 - April 30)
+if (withinTaxSeason && baseSeverity === 'medium') {
+  severity = 'high';  // Upgrade medium → high
+}
+
+// GST Payment Dates (5th of Jan/Apr/Jul/Oct)
+// CCR Payment Dates (15th of Jan/Apr/Jul/Oct)
+if (isPaymentDate && baseSeverity === 'high') {
+  severity = 'critical';  // Upgrade high → critical
+}
+</pre>
+
+<h3>What's Displayed</h3>
+<table>
+  <tr><th>Component</th><th>Data</th></tr>
+  <tr><td>Summary Cards</td><td>Count of flagged terms by severity (critical/high/medium/low)</td></tr>
+  <tr><td>Critical Alerts</td><td>Top 20 critical-severity terms, sorted by impressions</td></tr>
+  <tr><td>Date Range</td><td>Quick buttons (7/30 days) or custom date picker</td></tr>
+  <tr><td>Total Analyzed</td><td>Number of queries from Search Console with 300+ impressions</td></tr>
+</table>
+
+<hr>
+
+<h1 id="admin">2. Admin Console Tab</h1>
+
+<p><strong>Purpose:</strong> Two functions - (1) AI-powered detection of NEW threats not yet in the database, and (2) managing the keyword database.</p>
+
+<h2 id="emerging">Sub-Tab 1: Emerging Threats</h2>
+
+<p>This tab shows search terms that are <strong>NOT YET</strong> in the database but exhibit scam-like characteristics.</p>
+
+<h3>Data Sources</h3>
+<table>
+  <tr><th>Source</th><th>Purpose</th></tr>
+  <tr><td>Google Search Console</td><td>Current period vs previous period comparison</td></tr>
+  <tr><td>OpenAI API</td><td>text-embedding-3-large for semantic similarity</td></tr>
+  <tr><td>DynamoDB</td><td>Seed phrases for embedding comparison + filtering already-added terms</td></tr>
+</table>
+
+<h3>Complete Step-by-Step Flow</h3>
+
+<h4>Step 1: User Loads the Page</h4>
+<pre>Frontend: GET /api/scams/emerging?days=7&page=1</pre>
+
+<h4>Step 2: Fetch Comparison Data from Google Search Console</h4>
+<pre>
+// EmergingThreatService.getEmergingThreats()
+
+// Get data for TWO time periods from Google Search Console:
+if (days === 7) {
+  comparison = await comparisonService.compareWeekOverWeek()
+  // Current period: last 7 days
+  // Previous period: 7 days before that
+} else {
+  comparison = await comparisonService.compareMonthOverMonth()
+}
+
+// comparison.terms contains ~25,000+ unique queries with:
+// - current: { impressions, clicks, ctr, position }
+// - previous: { impressions, clicks, ctr, position }
+// - change: { impressions, impressionsPercent, clicks, clicksPercent }
+// - isNew: true if only in current period
+// - isGone: true if only in previous period
+</pre>
+
+<h4>Step 3: Pre-Filter Candidates (Reduce 25k → ~500-2000)</h4>
+<pre>
+const candidateTerms = comparison.terms.filter(term => {
+  // SKIP: Terms already in our scam database
+  if (scamDetectionService.isExactKeywordMatch(term.query)) {
+    return false;
+  }
+
+  // INCLUDE: New terms with 20+ impressions
+  if (term.isNew && term.current.impressions >= 20) return true;
+
+  // INCLUDE: Growing terms (50%+ increase, 50+ impressions)
+  if (term.change.impressionsPercent >= 50 && term.current.impressions >= 50) return true;
+
+  // INCLUDE: High volume terms (500+ impressions)
+  if (term.current.impressions >= 500) return true;
+
+  return false;
+});
+// Result: ~500-2000 candidate terms
+</pre>
+
+<h4>Step 4: Send ALL Candidates to OpenAI (Single Batch API Call)</h4>
+<pre>
+// EmbeddingService.analyzeQueries()
+
+// 4a. Extract all query strings
+const queries = candidateTerms.map(t => t.query);  // e.g., 1500 queries
+
+// 4b. Send to OpenAI Embeddings API (batched, up to 2048 per request)
+const response = await openai.embeddings.create({
+  model: 'text-embedding-3-large',  // 3072 dimensions
+  input: queries,                    // All 1500 queries at once
+});
+
+// OpenAI returns 1500 embedding vectors (each is 3072 numbers)
+// Cost: ~$0.02-0.05 per request
+</pre>
+
+<h4>Step 5: Compare Each Query to ALL Seed Phrases (In Memory - No API)</h4>
+<pre>
+// For each of the 1500 query embeddings:
+for (const queryEmbedding of queryEmbeddings) {
+
+  // Compare against ALL 120 pre-computed seed phrase embeddings
+  for (const seedPhrase of seedPhrases) {
+    const seedEmbedding = seedEmbeddings.get(seedPhrase.text);
+
+    // Cosine similarity calculation (no API call - pure math)
+    const similarity = cosineSimilarity(queryEmbedding, seedEmbedding);
+    // Result: 0 to 1 (1 = identical meaning)
+
+    // If similarity >= 0.80 (80%), it's a match
+    if (similarity >= 0.80) {
+      matches.push({
+        phrase: seedPhrase.text,
+        category: seedPhrase.category,     // e.g., "fakeExpiredBenefits"
+        severity: seedPhrase.severity,      // e.g., "critical"
+        similarity: 0.85,
+      });
+    }
+  }
+}
+
+// Result: Map of query → best matching seed phrase (if any)
+// e.g., "cra grocery rebate 2025" → "grocery rebate" (92% match, critical)
+</pre>
+
+<h4>Step 6: Analyze Each Candidate for Risk</h4>
+<pre>
+for (const term of candidateTerms) {
+  const embeddingMatch = embeddingResults.get(term.query);
+
+  // 6a. Skip legitimate queries (tax software, H&R Block, etc.)
+  if (isLegitimateQuery(query)) continue;
+
+  // 6b. Filter CRA-only context matches
+  // Skip if query and matched phrase only share "cra", "tax", "canada"
+  if (embeddingMatch && isOnlyCraContextMatch(query, embeddingMatch.matchedPhrase)) {
+    embeddingMatch = null;
+  }
+
+  // 6c. Calculate CTR Anomaly
+  const ctrAnomaly = calculateCTRAnomaly(term.current.ctr, term.current.position, benchmarks);
+  // Low CTR at good position = users clicking scam sites instead of CRA
+
+  // 6d. Check for regex patterns
+  const matchedPatterns = checkDynamicPatterns(query);
+  // Looks for: "$500", "claim now", "bonus money", etc.
+
+  // 6e. Calculate velocity
+  const velocity = calculateVelocity(term, days);
+  // impressionsPerDay / 500, capped at 1.0
+
+  // 6f. REQUIRE at least one scam signal (CRITICAL)
+  const hasScamSignal = embeddingMatch || matchedPatterns.length > 0;
+  if (!hasScamSignal) continue;  // Skip - not scam related
+
+  // 6g. Calculate composite risk score
+  const riskScore = calculateRiskScore(...);
+}
+</pre>
+
+<h4>Step 7: Return Paginated Results</h4>
+<pre>
+// Filter: Only threats with score >= 20
+// Sort: By risk score descending
+// Paginate: 500 per page, max 10 pages
+
+return {
+  threats: [...],
+  summary: { critical: 5, high: 23, medium: 45, low: 12, total: 85 },
+  pagination: { page: 1, totalPages: 1, hasNextPage: false },
+  currentPeriod: { startDate: '2025-12-29', endDate: '2026-01-05' },
+  previousPeriod: { startDate: '2025-12-22', endDate: '2025-12-29' },
+}
+</pre>
+
+<h3>Visual Flow Diagram</h3>
+<div class="diagram">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ADMIN CONSOLE - EMERGING THREATS FLOW                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┐
+│ 1. User Request  │
+│ GET /emerging    │
+│ ?days=7&page=1   │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 2. GOOGLE SEARCH CONSOLE                                                      │
+│    Fetch 2 periods of data                                                    │
+│    Current: Dec 29 - Jan 5 (7 days)                                          │
+│    Previous: Dec 22 - Dec 29 (7 days)                                        │
+│    Result: ~25,000 unique queries                                            │
+└────────┬─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 3. PRE-FILTER                                                                 │
+│    - Skip terms already in scam database                                     │
+│    - Keep if ANY condition is true:                                          │
+│      • New terms with 200+ current impressions                               │
+│      • Growing terms: 50%+ impression growth AND 50+ current impressions     │
+│      • High volume: 500+ current impressions (regardless of new/growing)     │
+│    Result: ~1,500 candidate terms                                            │
+└────────┬─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 4. OPENAI EMBEDDINGS API (Single API Call)                                    │
+│                                                                               │
+│    POST https://api.openai.com/v1/embeddings                                 │
+│    {                                                                          │
+│      model: "text-embedding-3-large",                                        │
+│      input: ["cra grocery rebate 2025", "cra bonus december", ...]          │
+│    }                                                                          │
+│                                                                               │
+│    Response: 1,500 vectors × 3,072 dimensions each                          │
+│    Cost: ~$0.02-0.05 per request                                             │
+└────────┬─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 5. COSINE SIMILARITY COMPARISON (In Memory - No API)                          │
+│                                                                               │
+│    For each of 1,500 queries:                                                │
+│      Compare against 120 pre-computed seed phrase embeddings                 │
+│      = 180,000 comparisons (instant, all in memory)                          │
+│                                                                               │
+│    Threshold: >= 0.80 (80% similarity)                                       │
+│                                                                               │
+│    Example:                                                                   │
+│    "cra grocery rebate 2025" ←→ "grocery rebate" = 0.92 ✓ MATCH             │
+│    "cra my account login"    ←→ all seed phrases &lt; 0.80 ✗ NO MATCH          │
+└────────┬─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 6. RISK ANALYSIS (For each candidate with scam signal)                        │
+│                                                                               │
+│    Query: "cra one time payment december 2025"                               │
+│    ├─ Embedding Match: "cra one time payment" (89%, critical)                │
+│    ├─ CTR Anomaly: 0.72 (expected 15%, actual 4%)                            │
+│    ├─ Position: 2.3 (good position, low clicks = suspicious)                 │
+│    ├─ Volume Growth: +340% (spike)                                           │
+│    ├─ Velocity: 127 impressions/day                                          │
+│    └─ Patterns: None                                                         │
+│                                                                               │
+│    Risk Score = (0.89×0.30×1.3 + 0.72×0.22 + 0.9×0.13 + ...) × 100          │
+│               = 78 → CRITICAL                                                │
+└────────┬─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 7. RETURN RESULTS                                                             │
+│                                                                               │
+│    Filter: score >= 20 only                                                  │
+│    Sort: by risk score descending                                            │
+│    Paginate: 500 per page                                                    │
+│                                                                               │
+│    Response: { threats: [...], summary: {...}, pagination: {...} }           │
+└──────────────────────────────────────────────────────────────────────────────┘
+</div>
+
+<h3>Risk Score Calculation</h3>
+
+<h4>Risk Level Thresholds</h4>
+<table>
+  <tr><th>Score Range</th><th>Risk Level</th></tr>
+  <tr><td>76-100</td><td class="critical">Critical</td></tr>
+  <tr><td>51-75</td><td class="high">High</td></tr>
+  <tr><td>31-50</td><td class="medium">Medium</td></tr>
+  <tr><td>0-30</td><td>Low</td></tr>
+</table>
+
+<h4>Formula (With Embedding Match)</h4>
+<pre>
+Risk Score = (
+  (Embedding Similarity × 0.30 × Severity Multiplier) +
+  (CTR Anomaly × 0.22) +
+  (Position Factor × 0.13) +
+  (Volume Factor × 0.13) +
+  (Emergence Factor × 0.10) +
+  (Velocity Factor × 0.12)
+) × 100 + Pattern Boost
+
+Severity Multipliers:
+- Matched critical category phrase: × 1.30
+- Matched high category phrase: × 1.15
+- Other: × 1.00
+</pre>
+
+<h4>Formula (Without Embedding Match)</h4>
+<pre>
+Risk Score = (
+  (CTR Anomaly × 0.35) +
+  (Position Factor × 0.22) +
+  (Volume Factor × 0.18) +
+  (Emergence Factor × 0.13) +
+  (Velocity Factor × 0.12)
+) × 100 + Pattern Boost + Similar Scam Boost
+</pre>
+
+<h3>Individual Risk Factors</h3>
+<table>
+  <tr><th>Factor</th><th>What It Measures</th><th>How It's Calculated</th></tr>
+  <tr><td><strong>CTR Anomaly</strong></td><td>Users NOT clicking CRA result at good position</td><td><code>(expectedCTR - actualCTR) / expectedCTR</code>, boosted +0.3 if below 10th percentile</td></tr>
+  <tr><td><strong>Position Factor</strong></td><td>Good ranking position but low clicks</td><td>Position 1-3 + &lt;50 clicks + &gt;100 impressions = 0.9</td></tr>
+  <tr><td><strong>Volume Factor</strong></td><td>Sudden spike in search volume</td><td>300%+ growth = 1.0, 200%+ = 0.8, 100%+ = 0.6, 50%+ = 0.3</td></tr>
+  <tr><td><strong>Emergence Factor</strong></td><td>Brand new term with significant volume</td><td>New term + &gt;100 impressions = 0.9</td></tr>
+  <tr><td><strong>Velocity Factor</strong></td><td>Rate of growth per day</td><td>impressionsPerDay / 500, capped at 1.0</td></tr>
+  <tr><td><strong>Embedding Similarity</strong></td><td>Semantic meaning similarity</td><td>Cosine similarity (0.80+ threshold)</td></tr>
+</table>
+
+<div class="note">
+<strong>Important:</strong> CTR anomaly alone is NOT enough to flag a term. A query MUST have either an embedding match OR a regex pattern match. This prevents false positives for queries like "holidays ontario 2025" which have low CTR simply because users don't want CRA results.
+</div>
+
+<h2 id="keywords">Sub-Tab 2: Keywords Management</h2>
+
+<p><strong>Purpose:</strong> View all keywords in the database and manually add new ones.</p>
+
+<h3>Adding a Keyword</h3>
+<p>When you add a keyword via Admin Console:</p>
+<pre>
+POST /api/scams/keywords { term: "new scam term", category: "threatLanguage" }
+
+1. Add to in-memory keywordsConfig
+2. Flush all caches
+3. Persist to DynamoDB as category = "keyword:threatLanguage"
+4. Add to EmbeddingService (recompute vector for semantic matching)
+5. Add to allSeedPhrases array (so Dashboard can match against it)
+
+The term is IMMEDIATELY active for:
+  - Dashboard detection (substring matching)
+  - Emerging threats filtering (excluded from results)
+  - Semantic similarity matching (if someone searches similar terms)
+</pre>
+
+<hr>
+
+<h1 id="comparison">3. Comparison Tab</h1>
+
+<p><strong>Purpose:</strong> Period-over-period analysis showing how search patterns are changing.</p>
+
+<h3>Data Source</h3>
+<p>Google Search Console API (two time periods)</p>
+
+<h3>How Comparison Works</h3>
+<pre>
+1. User selects comparison type (week/2-week/month/custom)
+
+2. Backend fetches Search Console data for:
+   - Current Period (e.g., last 7 days)
+   - Previous Period (e.g., 7 days before that)
+
+3. For each unique query across both periods:
+   current = { impressions, clicks, ctr, position } from current period
+   previous = { impressions, clicks, ctr, position } from previous period
+
+   change = {
+     impressions: current.impressions - previous.impressions,
+     impressionsPercent: ((current - previous) / previous) × 100,
+     clicks: current.clicks - previous.clicks,
+     clicksPercent: ((currentClicks - previousClicks) / previousClicks) × 100,
+     ctr: current.ctr - previous.ctr,
+     position: current.position - previous.position,
+   }
+
+   isNew = only exists in current period
+   isGone = only exists in previous period
+</pre>
+
+<h3>What's Displayed</h3>
+<table>
+  <tr><th>Section</th><th>Data</th><th>Filter Criteria</th></tr>
+  <tr><td>Summary Cards</td><td>Total impressions change, new terms count, dropped terms count</td><td>None</td></tr>
+  <tr><td>Trending Terms</td><td>Existing terms with significant changes</td><td>300+ current impressions AND 20%+ absolute change</td></tr>
+  <tr><td>New Terms</td><td>Terms that appeared this period</td><td>500+ impressions</td></tr>
+  <tr><td>Dropped Terms</td><td>Terms that disappeared</td><td>300+ previous impressions</td></tr>
+</table>
+
+<hr>
+
+<h1 id="trends">4. Trends Tab</h1>
+
+<p><strong>Purpose:</strong> Explore Google Trends data to see public search interest for specific keywords over time.</p>
+
+<h3>Data Source</h3>
+<ul>
+  <li>Google Trends API (unofficial <code>google-trends-api</code> npm package)</li>
+  <li>Geographic filter: Canada only (<code>geo: 'CA'</code>)</li>
+</ul>
+
+<h3>Time Period Options</h3>
+<table>
+  <tr><th>Label</th><th>API Value</th><th>Description</th></tr>
+  <tr><td>Past hour</td><td><code>now 1-H</code></td><td>Last 60 minutes</td></tr>
+  <tr><td>Past 4 hours</td><td><code>now 4-H</code></td><td>Last 4 hours</td></tr>
+  <tr><td>Past day</td><td><code>now 1-d</code></td><td>Last 24 hours</td></tr>
+  <tr><td>Past 7 days</td><td><code>now 7-d</code></td><td>Last week</td></tr>
+  <tr><td>Past 30 days</td><td><code>today 1-m</code></td><td>Last month</td></tr>
+  <tr><td>Past 90 days</td><td><code>today 3-m</code></td><td>Last 3 months (default)</td></tr>
+  <tr><td>Past 12 months</td><td><code>today 12-m</code></td><td>Last year</td></tr>
+  <tr><td>Past 5 years</td><td><code>today 5-y</code></td><td>Last 5 years</td></tr>
+</table>
+
+<h3>Trend Direction Calculation</h3>
+<pre>
+// Split data points into two halves
+const midpoint = Math.floor(points.length / 2);
+const firstHalfAvg = average(points[0..midpoint]);
+const secondHalfAvg = average(points[midpoint..end]);
+const percentChange = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) × 100;
+
+if (percentChange > 10) → 'Rising' (red - concerning)
+if (percentChange < -10) → 'Falling' (green - good)
+else → 'Stable' (blue)
+</pre>
+
+<hr>
+
+<h1 id="social">5. Social Tab</h1>
+
+<p><strong>Purpose:</strong> Monitor Reddit discussions about CRA and tax topics with AI sentiment analysis.</p>
+
+<h3>Data Sources</h3>
+<table>
+  <tr><th>Source</th><th>Purpose</th></tr>
+  <tr><td>Reddit API</td><td>Fetch posts from monitored subreddits</td></tr>
+  <tr><td>DynamoDB</td><td>Store posts with 30-day TTL</td></tr>
+  <tr><td>OpenAI GPT-4o-mini</td><td>Sentiment classification</td></tr>
+</table>
+
+<h3>Data Flow</h3>
+<pre>
+Daily Lambda (6am EST) triggers:
+  POST /api/reddit/fetch
+
+1. RedditService.getAllMonitoredPosts()
+   For each subreddit × search term combination:
+     → Reddit API search (sorted by 'new', time='week')
+     → Deduplicate by post ID
+
+2. SentimentService.batchAnalyzeSentiment(posts)
+   For each post (batches of 10):
+     → GPT-4o-mini classifies as positive/negative/neutral
+     → Returns: label, score (-1 to 1), confidence (0 to 1)
+
+3. DynamoDbService.saveRedditPost(post)
+   → Save to cra-reddit-posts table with 30-day TTL
+
+User loads Social tab:
+  GET /api/reddit/posts?days=7&source=db
+  GET /api/reddit/stats?days=7
+</pre>
+
+<h3>Sentiment Classification</h3>
+<table>
+  <tr><th>Label</th><th>Description</th><th>Examples</th></tr>
+  <tr><td><strong>positive</strong></td><td>Helpful, informative, solution-oriented</td><td>"Just got my refund!", "Here's how to file for free..."</td></tr>
+  <tr><td><strong>negative</strong></td><td>Complaints, frustration, warnings</td><td>"CRA scam call again!", "Waiting 3 months for assessment"</td></tr>
+  <tr><td><strong>neutral</strong></td><td>Factual questions, informational</td><td>"When is the GST payment date?"</td></tr>
+</table>
+
+<hr>
+
+<h1 id="dynamodb">6. DynamoDB Data Model</h1>
+
+<h3>Table: cra-scam-seed-phrases</h3>
+<table>
+  <tr><th>Category Pattern</th><th>Purpose</th><th>Used By</th></tr>
+  <tr><td><code>fakeExpiredBenefits</code></td><td>Seed phrases for fake benefit scams</td><td>Dashboard, Embedding</td></tr>
+  <tr><td><code>illegitimatePaymentMethods</code></td><td>Seed phrases for payment method scams</td><td>Dashboard, Embedding</td></tr>
+  <tr><td><code>threatLanguage</code></td><td>Seed phrases for threat-based scams</td><td>Dashboard, Embedding</td></tr>
+  <tr><td><code>suspiciousModifiers</code></td><td>Seed phrases for urgency/scam modifiers</td><td>Dashboard, Embedding</td></tr>
+  <tr><td><code>keyword:categoryName</code></td><td>Admin-added keywords</td><td>Dashboard, Emerging filter</td></tr>
+  <tr><td><code>seen-term</code></td><td>Previously detected terms</td><td>Tracking</td></tr>
+  <tr><td><code>whitelist</code></td><td>Terms to exclude from detection</td><td>Excluded from queries</td></tr>
+</table>
+
+<h4>Schema</h4>
+<pre>
+{
+  category: string,    // Primary key
+  term: string,        // Sort key
+  severity: string,    // 'critical', 'high', 'medium', 'low'
+  createdAt: string,   // ISO timestamp
+}
+</pre>
+
+<hr>
+
+<h1 id="algorithms">7. Algorithm Reference</h1>
+
+<h3>Cosine Similarity (Embedding Comparison)</h3>
+<pre>
+similarity(A, B) = (A · B) / (||A|| × ||B||)
+
+Where:
+- A, B = 3072-dimensional embedding vectors from OpenAI
+- Result: 0 to 1 (1 = identical meaning)
+- Threshold: >= 0.80 (80%) to be considered a match
+</pre>
+
+<h3>CTR Anomaly Detection (Dynamic - Calculated from YOUR Data)</h3>
+
+<p>CTR benchmarks are <strong>NOT hardcoded</strong>. They are dynamically calculated from your actual canada.ca Search Console data.</p>
+
+<h4>How Benchmarks Are Calculated:</h4>
+<pre>
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Fetch 90 days of Search Console data                        │
+│  2. Filter to queries with 10+ impressions                      │
+│  3. Group all queries by position range: 1-3, 4-8, 9-15, 16+   │
+│  4. For each group, calculate percentiles from actual CTR data: │
+│     • min = 10th percentile (below this = anomalous)           │
+│     • expected = 50th percentile (median CTR)                  │
+│     • max = 90th percentile                                    │
+└─────────────────────────────────────────────────────────────────┘
+</pre>
+
+<h4>Position Ranges:</h4>
+<table>
+  <tr><th>Range</th><th>Description</th><th>Typical Expected CTR</th></tr>
+  <tr><td>1-3</td><td>Top 3 results</td><td>~15-25%</td></tr>
+  <tr><td>4-8</td><td>First page lower</td><td>~8-12%</td></tr>
+  <tr><td>9-15</td><td>Second page</td><td>~3-6%</td></tr>
+  <tr><td>16+</td><td>Deep results</td><td>~1-3%</td></tr>
+</table>
+<p><em>Note: These are approximate. Actual values come from YOUR data.</em></p>
+
+<h4>CTR Anomaly Score Calculation:</h4>
+<pre>
+// 1. Get the benchmark for this term's position
+if (position <= 3) → use "1-3" benchmark
+if (position <= 8) → use "4-8" benchmark
+if (position <= 15) → use "9-15" benchmark
+else → use "16+" benchmark
+
+// 2. Calculate anomaly score (0 to 1)
+anomalyScore = (expectedCTR - actualCTR) / expectedCTR
+
+// 3. Determine if truly anomalous (below 10th percentile)
+isAnomalous = actualCTR < minCTR (10th percentile)
+
+// 4. If anomalous, boost the CTR factor by +0.3
+</pre>
+
+<h4>Example:</h4>
+<pre>
+Term: "cra $500 grocery rebate"
+Position: 2.5 (uses "1-3" benchmark)
+Actual CTR: 1.2%
+
+Benchmark for position 1-3 (from your data):
+  - Expected (50th %ile): 20%
+  - Min (10th %ile): 3%
+
+Anomaly Score = (0.20 - 0.012) / 0.20 = 0.94 (very high!)
+Is Anomalous? YES (1.2% < 3% threshold)
+</pre>
+
+<p><strong>Why this matters:</strong> A query ranking #2 should get ~20% CTR based on your historical data. If it's only getting 1.2%, users are searching for it but NOT clicking the CRA result → they're likely clicking scam sites instead.</p>
+
+<p><strong>Cache:</strong> Benchmarks are cached for 1 hour to avoid recalculating on every request.</p>
+
+<h3>Velocity Calculation</h3>
+<pre>
+impressionsPerDay = (currentImpressions - previousImpressions) / days
+velocityScore = min(1, impressionsPerDay / 500)
+
+// 500+ impressions/day = maximum velocity score of 1.0
+</pre>
+
+<hr>
+
+<h2>Quick Reference: What Each Tab Answers</h2>
+<table>
+  <tr><th>Tab</th><th>Primary Question</th><th>Data Source</th><th>Method</th></tr>
+  <tr><td><strong>Dashboard</strong></td><td>Which queries match known scam patterns?</td><td>Search Console + JSON + DynamoDB</td><td>Substring matching</td></tr>
+  <tr><td><strong>Admin - Emerging</strong></td><td>What NEW patterns are emerging?</td><td>Search Console + OpenAI</td><td>AI semantic similarity</td></tr>
+  <tr><td><strong>Admin - Keywords</strong></td><td>What's in our database?</td><td>DynamoDB + JSON</td><td>Manual management</td></tr>
+  <tr><td><strong>Comparison</strong></td><td>How are patterns changing?</td><td>Search Console (2 periods)</td><td>Period comparison</td></tr>
+  <tr><td><strong>Trends</strong></td><td>What's the public interest?</td><td>Google Trends</td><td>Interest over time</td></tr>
+  <tr><td><strong>Social</strong></td><td>What are people saying on Reddit?</td><td>Reddit + GPT-4o-mini</td><td>Sentiment analysis</td></tr>
+</table>
+
+</body>
+</html>

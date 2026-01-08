@@ -2,9 +2,13 @@ import { Controller, Get, Post, Query, Body, Param, Logger, HttpException, HttpS
 import { ScamDetectionService } from '../services/scam-detection.service';
 import { SearchConsoleService } from '../services/search-console.service';
 import { EmergingThreatService } from '../services/emerging-threat.service';
+import { ComparisonService } from '../services/comparison.service';
 import {
   DateRange,
   AddKeywordRequest,
+  FlaggedTerm,
+  FlaggedTermWithComparison,
+  TermComparison,
 } from '@cra-scam-detection/shared-types';
 import { environment } from '../environments/environment';
 
@@ -30,6 +34,7 @@ export class ScamsController {
   constructor(
     private readonly scamDetectionService: ScamDetectionService,
     private readonly emergingThreatService: EmergingThreatService,
+    private readonly comparisonService: ComparisonService,
   ) {}
 
   /**
@@ -151,19 +156,45 @@ export class ScamsController {
         dateRange = SearchConsoleService.getDateRange(daysNum);
       }
 
-      const detection = await this.scamDetectionService.detectScams(dateRange);
+      // Calculate previous period
+      const daysInPeriod = this.getDaysBetween(dateRange.startDate, dateRange.endDate);
+      const previousPeriod = this.getPreviousPeriod(dateRange, daysInPeriod);
 
+      // Fetch detection and comparison data in parallel
+      const [detection, comparison] = await Promise.all([
+        this.scamDetectionService.detectScams(dateRange),
+        this.comparisonService.comparePeriods({
+          currentPeriod: dateRange,
+          previousPeriod,
+        }),
+      ]);
+
+      // Create lookup map from comparison data by query (lowercase)
+      const comparisonMap = new Map(
+        comparison.terms.map((t) => [t.query.toLowerCase(), t])
+      );
+
+      // Filter and enrich critical alerts
       const criticalAlerts = detection.flaggedTerms
         .filter((t) => t.severity === 'critical')
-        .slice(0, 20);
+        .slice(0, 20)
+        .map((term) => this.enrichWithComparison(term, comparisonMap));
+
+      // Filter and enrich high alerts
+      const highAlerts = detection.flaggedTerms
+        .filter((t) => t.severity === 'high')
+        .slice(0, 20)
+        .map((term) => this.enrichWithComparison(term, comparisonMap));
 
       return {
         success: true,
         data: {
           summary: detection.summary,
           criticalAlerts,
+          highAlerts,
           totalQueriesAnalyzed: detection.totalQueriesAnalyzed,
           period: dateRange,
+          previousPeriod,
         },
       };
     } catch (error) {
@@ -171,6 +202,61 @@ export class ScamsController {
       this.logger.error(`Failed to get dashboard data: ${error}`);
       throw new HttpException('Failed to get dashboard data', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Enrich a flagged term with comparison data from previous period
+   */
+  private enrichWithComparison(
+    term: FlaggedTerm,
+    comparisonMap: Map<string, TermComparison>
+  ): FlaggedTermWithComparison {
+    const comparison = comparisonMap.get(term.query.toLowerCase());
+
+    if (!comparison || comparison.isNew) {
+      return {
+        ...term,
+        previous: null,
+        isNew: true,
+        change: undefined,
+      };
+    }
+
+    return {
+      ...term,
+      previous: comparison.previous,
+      isNew: false,
+      change: {
+        impressions: comparison.change.impressions,
+        impressionsPercent: comparison.change.impressionsPercent,
+        position: comparison.change.position,
+      },
+    };
+  }
+
+  /**
+   * Calculate the number of days between two dates
+   */
+  private getDaysBetween(startDate: string, endDate: string): number {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  }
+
+  /**
+   * Get previous period based on current period and duration
+   */
+  private getPreviousPeriod(currentPeriod: DateRange, days: number): DateRange {
+    const prevEnd = new Date(currentPeriod.startDate);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - days + 1);
+
+    return {
+      startDate: prevStart.toISOString().split('T')[0],
+      endDate: prevEnd.toISOString().split('T')[0],
+    };
   }
 
   @Get('emerging')

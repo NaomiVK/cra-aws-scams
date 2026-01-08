@@ -26,6 +26,30 @@ export type FlaggedTerm = {
 };
 
 /**
+ * Previous period metrics for comparison display
+ */
+export type PreviousPeriodMetrics = {
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  position: number;
+};
+
+/**
+ * Flagged term with comparison to previous period
+ * Used for dashboard display with period-over-period comparison
+ */
+export type FlaggedTermWithComparison = FlaggedTerm & {
+  previous: PreviousPeriodMetrics | null; // null if term is new
+  isNew: boolean; // true if term didn't exist in previous period
+  change?: {
+    impressions: number;
+    impressionsPercent: number;
+    position: number; // positive = worse position (moved down), negative = improved
+  };
+};
+
+/**
  * Scam detection result for a date range
  */
 export type ScamDetectionResult = {
@@ -157,9 +181,14 @@ export type DashboardData = {
     info: number;
     total: number;
   };
-  criticalAlerts: FlaggedTerm[];
+  criticalAlerts: FlaggedTermWithComparison[];
+  highAlerts: FlaggedTermWithComparison[];
   totalQueriesAnalyzed: number;
   period: {
+    startDate: string;
+    endDate: string;
+  };
+  previousPeriod: {
     startDate: string;
     endDate: string;
   };

@@ -133,7 +133,7 @@ export class EmergingThreatService {
           }
 
           // Include if: new term with decent impressions
-          if (term.isNew && term.current.impressions >= 20) return true;
+          if (term.isNew && term.current.impressions >= 200) return true;
 
           // Include if: significant impression growth (>50%)
           if (term.change.impressionsPercent >= 50 && term.current.impressions >= 50) return true;
