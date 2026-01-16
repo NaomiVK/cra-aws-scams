@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { NgbDatepickerModule, NgbDate, NgbCalendar, NgbModal, NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../services/api.service';
-import { ComparisonResponse, DateRange, TermComparison, ScamKeywordsConfig } from '@cra-scam-detection/shared-types';
+import { ComparisonResponse, DateRange, TermComparison } from '@cra-scam-detection/shared-types';
 
 type SortColumn = 'query' | 'currentImpressions' | 'previousImpressions' | 'change';
 type SortDirection = 'asc' | 'desc';
@@ -120,19 +120,17 @@ export class ComparisonComponent implements OnInit {
 
   async loadSeedPhrases(): Promise<void> {
     try {
-      const response = await firstValueFrom(this.api.getKeywordsConfig());
-      if (response?.success && response.data?.categories) {
+      // Use getSeedPhrases() to get ALL seed phrases including DynamoDB entries
+      const response = await firstValueFrom(this.api.getSeedPhrases());
+      if (response?.success && response.data) {
         const allTerms = new Set<string>();
-        const categories = response.data.categories as ScamKeywordsConfig['categories'];
-        for (const category of Object.values(categories)) {
-          for (const term of category.terms) {
-            allTerms.add(term.toLowerCase());
-          }
+        for (const phrase of response.data) {
+          allTerms.add(phrase.term.toLowerCase());
         }
         this.existingSeedPhrases.set(allTerms);
       }
     } catch (err) {
-      console.error('Failed to load keywords config:', err);
+      console.error('Failed to load seed phrases:', err);
     }
   }
 

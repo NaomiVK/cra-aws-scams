@@ -38,7 +38,7 @@ export const environment = {
   // Cache Settings (in seconds)
   cache: {
     analyticsTtl: 3600, // 1 hour
-    trendsTtl: 1800, // 30 minutes
+    trendsTtl: 7200, // 2 hours - longer TTL to reduce Google rate limiting
     keywordsTtl: 300, // 5 minutes
     embeddingsTtl: 86400, // 24 hours for seed phrase embeddings
     benchmarksTtl: 3600, // 1 hour for CTR benchmarks

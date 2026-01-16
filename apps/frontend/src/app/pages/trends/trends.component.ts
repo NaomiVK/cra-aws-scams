@@ -347,7 +347,8 @@ export class TrendsComponent implements OnInit, OnDestroy {
       if (response?.success && response.data) {
         this.trendsData.set(response.data);
         this.updateChart(response.data);
-        this.loadRegionData(term);
+        // Delay region call to avoid Google rate limiting
+        setTimeout(() => this.loadRegionData(term), 1500);
       } else {
         this.error.set(response?.error || 'Failed to load trends data');
       }

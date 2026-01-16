@@ -327,8 +327,11 @@ export class ScamDetectionService implements OnModuleInit {
     let category = '';
     let severity = 'medium';
 
+    const normalizedQuery = query.toLowerCase().trim();
+
     for (const seedPhrase of this.allSeedPhrases) {
-      if (query.includes(seedPhrase.term)) {
+      // Exact match only - query must exactly match the seed phrase term
+      if (normalizedQuery === seedPhrase.term.toLowerCase().trim()) {
         matched.push(seedPhrase.term);
         if (!category) {
           category = seedPhrase.category;

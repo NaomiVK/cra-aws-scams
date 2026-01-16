@@ -294,6 +294,10 @@ export class AdminComponent implements OnInit {
     return names[key] || key;
   }
 
+  getGoogleSearchUrl(query: string): string {
+    return 'https://www.google.com/search?q=' + encodeURIComponent(query);
+  }
+
   getCategory(config: ScamKeywordsConfig, key: CategoryKey): KeywordCategory {
     return config.categories[key];
   }

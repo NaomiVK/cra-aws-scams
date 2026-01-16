@@ -39,7 +39,7 @@ export class TrendsController {
     if (!result) {
       return {
         success: false,
-        error: 'Failed to fetch trends data. The service may be rate limited.',
+        error: 'Failed to fetch trends data. Google is rate limiting requests - please wait 5 minutes and try again.',
       };
     }
 

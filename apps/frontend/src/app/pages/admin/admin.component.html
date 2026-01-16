@@ -100,6 +100,13 @@
                         </td>
                         <td>
                           <strong>{{ threat.query }}</strong>
+                          <a [href]="getGoogleSearchUrl(threat.query)"
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             class="ms-2 text-muted"
+                             ngbTooltip="Search Google for this query">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                          </a>
                           @if (threat.isNew) {
                             <span class="badge bg-primary ms-2" ngbTooltip="First appeared in the current period">New</span>
                           }

@@ -13,11 +13,30 @@ import { environment } from '../environments/environment';
 // Using require for google-trends-api as it doesn't have proper TS types
 const googleTrends = require('google-trends-api');
 
+// Special marker to cache rate-limited state
+const RATE_LIMITED_MARKER = '__RATE_LIMITED__';
+const RATE_LIMIT_CACHE_TTL = 300; // 5 minutes backoff when rate limited
+
 @Injectable()
 export class TrendsService {
   private readonly logger = new Logger(TrendsService.name);
 
   constructor(private readonly cacheService: CacheService) {}
+
+  /**
+   * Check if we're currently rate limited (cached marker exists)
+   */
+  private isRateLimited(): boolean {
+    return this.cacheService.get<string>('trends:rate-limited') === RATE_LIMITED_MARKER;
+  }
+
+  /**
+   * Mark as rate limited for 5 minutes
+   */
+  private setRateLimited(): void {
+    this.logger.warn(`[TRENDS] Rate limited by Google - backing off for ${RATE_LIMIT_CACHE_TTL} seconds`);
+    this.cacheService.set('trends:rate-limited', RATE_LIMITED_MARKER, RATE_LIMIT_CACHE_TTL);
+  }
 
   /**
    * Convert time range string to startTime/endTime Date objects
@@ -66,6 +85,12 @@ export class TrendsService {
     keyword: string,
     timeRange = 'today 3-m'
   ): Promise<InterestOverTime | null> {
+    // Check if we're currently rate limited - don't even try
+    if (this.isRateLimited()) {
+      this.logger.warn(`[TRENDS] Skipping request for "${keyword}" - currently rate limited`);
+      return null;
+    }
+
     const cacheKey = `trends:interest:${keyword}:${timeRange}`;
 
     return this.cacheService.getOrSet(
@@ -83,10 +108,14 @@ export class TrendsService {
             endTime,
           });
 
-          // Log raw response for debugging - check for HTML error pages
+          // Log raw response for debugging - check for HTML error pages (rate limiting)
           if (typeof result === 'string' && result.startsWith('<')) {
             const preview = result.length > 500 ? result.substring(0, 500) + '...' : result;
             this.logger.error(`[TRENDS] Google returned HTML instead of JSON for "${keyword}" (${result.length} bytes). Preview: ${preview}`);
+            // Check if it's a 429 rate limit error
+            if (result.includes('429') || result.includes('Too Many Requests')) {
+              this.setRateLimited();
+            }
             return null;
           }
 
@@ -119,6 +148,10 @@ export class TrendsService {
             `Failed to fetch trends for "${keyword}" (timeRange: ${timeRange}): ${error.message}`,
             error.stack
           );
+          // Check for rate limiting in error message
+          if (error.message?.includes('429') || error.message?.includes('<')) {
+            this.setRateLimited();
+          }
           return null;
         }
       },
@@ -132,6 +165,11 @@ export class TrendsService {
   async getRelatedQueries(
     keyword: string
   ): Promise<{ rising: string[]; top: string[] } | null> {
+    // Check if we're currently rate limited - don't even try
+    if (this.isRateLimited()) {
+      return null;
+    }
+
     const cacheKey = `trends:related:${keyword}`;
 
     return this.cacheService.getOrSet(
@@ -142,6 +180,14 @@ export class TrendsService {
             keyword,
             geo: 'CA',
           });
+
+          // Check for HTML error response (rate limiting)
+          if (typeof result === 'string' && result.startsWith('<')) {
+            if (result.includes('429') || result.includes('Too Many Requests')) {
+              this.setRateLimited();
+            }
+            return null;
+          }
 
           const parsed = JSON.parse(result);
           const defaultData = parsed.default || {};
@@ -161,6 +207,9 @@ export class TrendsService {
           this.logger.warn(
             `Failed to fetch related queries for "${keyword}": ${error.message}`
           );
+          if (error.message?.includes('429') || error.message?.includes('<')) {
+            this.setRateLimited();
+          }
           return null;
         }
       },
@@ -292,6 +341,12 @@ export class TrendsService {
     geo = 'CA',
     resolution = 'REGION'
   ): Promise<InterestByRegionResponse | null> {
+    // Check if we're currently rate limited - don't even try
+    if (this.isRateLimited()) {
+      this.logger.warn(`[TRENDS] Skipping region request for "${keyword}" - currently rate limited`);
+      return null;
+    }
+
     const cacheKey = `trends:region:${keyword}:${geo}:${resolution}`;
 
     return this.cacheService.getOrSet(
@@ -305,6 +360,14 @@ export class TrendsService {
             geo,
             resolution,
           });
+
+          // Check for HTML error response (rate limiting)
+          if (typeof result === 'string' && result.startsWith('<')) {
+            if (result.includes('429') || result.includes('Too Many Requests')) {
+              this.setRateLimited();
+            }
+            return null;
+          }
 
           const parsed = JSON.parse(result);
           const geoMapData = parsed.default?.geoMapData || [];
@@ -328,6 +391,9 @@ export class TrendsService {
           };
         } catch (error) {
           this.logger.error(`Failed to fetch interest by region for "${keyword}": ${error.message}`);
+          if (error.message?.includes('429') || error.message?.includes('<')) {
+            this.setRateLimited();
+          }
           return null;
         }
       },
