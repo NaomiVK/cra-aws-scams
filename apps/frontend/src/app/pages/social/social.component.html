@@ -54,22 +54,16 @@
         >
           30 Days
         </button>
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-primary]="selectedDays() === 90"
+          [class.btn-outline-secondary]="selectedDays() !== 90"
+          (click)="onDaysChange(90)"
+        >
+          90 Days
+        </button>
       </div>
-
-      <!-- Fetch button -->
-      <button
-        class="btn btn-primary"
-        (click)="fetchFreshData()"
-        [disabled]="fetching() || !serviceReady()"
-        ngbTooltip="Fetch fresh data from Reddit"
-      >
-        @if (fetching()) {
-          <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-          Fetching...
-        } @else {
-          <i class="bi bi-arrow-clockwise me-1"></i>Fetch Data
-        }
-      </button>
     </div>
   </div>
 

@@ -185,7 +185,7 @@ export class RedditService implements OnModuleInit {
           const submissions = await this.reddit!.getSubreddit(subreddit).search({
             query: term,
             sort: 'new',
-            time: 'week',
+            time: 'year',
             limit,
           } as Snoowrap.SearchOptions);
 
@@ -273,7 +273,7 @@ export class RedditService implements OnModuleInit {
         query,
         subreddit: subredditStr,
         sort: 'new',
-        time: 'week',
+        time: 'year',
         limit,
       });
 
