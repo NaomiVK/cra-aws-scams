@@ -13,32 +13,31 @@ import {
 } from '@cra-scam-detection/shared-types';
 
 /**
- * Default search terms if DynamoDB is empty
+ * Default search terms - always searched even if DynamoDB is empty
  */
 const DEFAULT_SEARCH_TERMS = [
-  'CRA',
-  'Canada Revenue Agency',
-  'tax refund',
+  'scam',
+  'phishing',
   'cra scam',
-  'cra rebate',
-  'cra one time payment',
-  'grocery rebate',
-  'inflation relief',
-  'cra rent relief',
-  'TFSA',
-  'RRSP',
+  'cra fraud',
+  'cra phone call',
+  'cra text message',
+  'tax scam',
+  'revenue agency scam',
+  'cra gift card',
+  'cra bitcoin',
+  'cra arrest warrant',
 ];
 
 /**
  * Reddit Service
- * Fetches and analyzes posts from CRA-related subreddits
+ * Fetches posts from CRA-related subreddits and filters against seed phrases
  */
 @Injectable()
 export class RedditService implements OnModuleInit {
   private readonly logger = new Logger(RedditService.name);
   private reddit: Snoowrap | null = null;
   private initialized = false;
-  private searchTerms: string[] = [];
   private readonly cacheTtl = 3600; // 1 hour
 
   constructor(
@@ -78,42 +77,11 @@ export class RedditService implements OnModuleInit {
         maxRetryAttempts: 3,
       });
 
-      // Load search terms from DynamoDB seed phrases
-      await this.loadSearchTerms();
-
       this.initialized = true;
       this.logger.log('Reddit service initialized successfully');
     } catch (error) {
       this.logger.error(`Failed to initialize Reddit client: ${error.message}`);
     }
-  }
-
-  /**
-   * Load search terms from DynamoDB seed phrases + defaults
-   */
-  private async loadSearchTerms(): Promise<void> {
-    try {
-      const seedPhrases = await this.dynamoDbService.getAllSeedPhrases();
-      const dynamoTerms = seedPhrases.map(p => p.term);
-
-      // Combine defaults + DynamoDB terms, deduplicate
-      const allTerms = [...DEFAULT_SEARCH_TERMS, ...dynamoTerms];
-      this.searchTerms = [...new Set(allTerms.map(t => t.toLowerCase()))];
-
-      this.logger.log(
-        `Loaded ${this.searchTerms.length} search terms (${DEFAULT_SEARCH_TERMS.length} defaults + ${dynamoTerms.length} from DynamoDB)`,
-      );
-    } catch (error) {
-      this.logger.warn(`Failed to load search terms from DynamoDB, using defaults: ${error.message}`);
-      this.searchTerms = DEFAULT_SEARCH_TERMS;
-    }
-  }
-
-  /**
-   * Get current search terms
-   */
-  getSearchTerms(): string[] {
-    return this.searchTerms;
   }
 
   /**
@@ -164,7 +132,7 @@ export class RedditService implements OnModuleInit {
   }
 
   /**
-   * Get posts from all monitored subreddits using keyword search
+   * Search Reddit for posts matching seed phrases from DynamoDB + hardcoded defaults
    */
   async getAllMonitoredPosts(
     limit = 10,
@@ -182,20 +150,32 @@ export class RedditService implements OnModuleInit {
       return cached;
     }
 
+    // Step 1: Load seed phrases from DynamoDB + combine with defaults
+    const seedPhrases = await this.dynamoDbService.getAllSeedPhrases();
+    const dynamoTerms = seedPhrases.map(p => p.term.toLowerCase());
+    const searchTerms = [...new Set([...DEFAULT_SEARCH_TERMS, ...dynamoTerms])];
+    this.logger.log(`Loaded ${searchTerms.length} search terms (${DEFAULT_SEARCH_TERMS.length} defaults + ${dynamoTerms.length} from DynamoDB)`);
+
+    if (searchTerms.length === 0) {
+      this.logger.warn('No search terms available');
+      return [];
+    }
+
+    // Step 2: Search Reddit for each term in each subreddit
     const seenIds = new Set<string>();
     const allPosts: RedditPost[] = [];
 
     // Build all search tasks
     const searchTasks: Array<{ subreddit: string; term: string }> = [];
     for (const subreddit of MONITORED_SUBREDDITS) {
-      for (const term of this.searchTerms) {
+      for (const term of searchTerms) {
         searchTasks.push({ subreddit, term });
       }
     }
 
-    this.logger.log(`Running ${searchTasks.length} searches in parallel...`);
+    this.logger.log(`Running ${searchTasks.length} searches (${MONITORED_SUBREDDITS.length} subreddits × ${searchTerms.length} terms)...`);
 
-    // Run searches in parallel (batches of 5 to respect rate limits)
+    // Run searches in batches to respect rate limits
     const batchSize = 5;
     for (let i = 0; i < searchTasks.length; i += batchSize) {
       const batch = searchTasks.slice(i, i + batchSize);
@@ -209,18 +189,14 @@ export class RedditService implements OnModuleInit {
             limit,
           } as Snoowrap.SearchOptions);
 
-          return submissions.map((post: Snoowrap.Submission) => ({
-            subreddit,
-            term,
-            post: this.mapSubmissionToPost(post),
-          }));
+          return submissions.map((post: Snoowrap.Submission) => this.mapSubmissionToPost(post));
         }),
       );
 
-      // Collect results
+      // Collect results, deduplicating by post ID
       for (const result of batchResults) {
         if (result.status === 'fulfilled') {
-          for (const { post } of result.value) {
+          for (const post of result.value) {
             if (!seenIds.has(post.id)) {
               seenIds.add(post.id);
               allPosts.push(post);
@@ -235,22 +211,30 @@ export class RedditService implements OnModuleInit {
       }
     }
 
-    this.logger.log(`Found ${allPosts.length} unique posts across all subreddits`);
+    this.logger.log(`Found ${allPosts.length} unique posts from Reddit search`);
+
+    // Step 3: Local filtering - verify posts actually contain exact phrases
+    const verifiedPosts = allPosts.filter(post => {
+      const text = `${post.title} ${post.content || ''}`.toLowerCase();
+      return searchTerms.some(term => text.includes(term.toLowerCase()));
+    });
+
+    this.logger.log(`Verified ${verifiedPosts.length} posts contain exact phrases (filtered out ${allPosts.length - verifiedPosts.length})`);
 
     // Sort by created_utc descending (newest first)
-    allPosts.sort(
+    verifiedPosts.sort(
       (a, b) => new Date(b.created_utc).getTime() - new Date(a.created_utc).getTime(),
     );
 
     // Analyze sentiment if requested
     if (withSentiment && this.sentimentService.isReady()) {
-      await this.enrichWithSentiment(allPosts);
+      await this.enrichWithSentiment(verifiedPosts);
     }
 
     // Cache results
-    this.cacheService.set(cacheKey, allPosts, this.cacheTtl);
+    this.cacheService.set(cacheKey, verifiedPosts, this.cacheTtl);
 
-    return allPosts;
+    return verifiedPosts;
   }
 
   /**

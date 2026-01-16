@@ -176,7 +176,6 @@ export class EmergingThreatService {
         }
 
         // STEP 3: Analyze candidate terms for scam patterns
-        // Only terms that match scam patterns will be flagged (no whitelist needed)
         const HIGH_SENSITIVITY_THRESHOLD = 20;
         const allThreats: EmergingThreat[] = [];
 
@@ -311,9 +310,6 @@ export class EmergingThreatService {
    * Analyze a single term for threat indicators
    * @param embeddingMatch Optional embedding match result from batch analysis
    * @param days Number of days in the comparison period (for velocity calculation)
-   *
-   * NOTE: Whitelist/semantic zone filtering is now done in batch in getEmergingThreats()
-   * Terms reaching this method have already passed semantic zone checks
    */
   private analyzeTermForThreats(
     term: TermComparison,
@@ -327,9 +323,6 @@ export class EmergingThreatService {
     if (this.isLegitimateQuery(query)) {
       return null;
     }
-
-    // Note: Semantic zone filtering is done in batch before this method is called
-    // No need for redundant whitelist checks here
 
     // Filter out embedding matches that are only based on CRA context words
     // e.g., "cra my account" matching "cra gift card" just because both have "cra"

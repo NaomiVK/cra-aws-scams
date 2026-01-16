@@ -186,12 +186,19 @@ export class ScamsController {
         .slice(0, 20)
         .map((term) => this.enrichWithComparison(term, comparisonMap));
 
+      // Get top 10 new terms (terms that appeared this period but not previous)
+      const newTerms = comparison.terms
+        .filter((t) => t.isNew && t.current.impressions >= 100)
+        .sort((a, b) => b.current.impressions - a.current.impressions)
+        .slice(0, 10);
+
       return {
         success: true,
         data: {
           summary: detection.summary,
           criticalAlerts,
           highAlerts,
+          newTerms,
           totalQueriesAnalyzed: detection.totalQueriesAnalyzed,
           period: dateRange,
           previousPeriod,

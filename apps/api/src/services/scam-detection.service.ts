@@ -152,8 +152,7 @@ export class ScamDetectionService implements OnModuleInit {
         this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
       }
 
-      // Load additional seed phrases from DynamoDB (excludes whitelist and seen-term)
-      // and merge with JSON seed phrases
+      // Load additional seed phrases from DynamoDB and merge with JSON seed phrases
       const dbSeedPhrases = await this.dynamoDbService.getAllSeedPhrases();
       let addedFromDb = 0;
 

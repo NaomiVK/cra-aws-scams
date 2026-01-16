@@ -2,6 +2,8 @@
  * Scam Detection Types
  */
 
+import { TermComparison } from './search-analytics.types';
+
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
 export type FlaggedTermStatus = 'new' | 'active' | 'reviewed' | 'dismissed' | 'escalated';
@@ -183,6 +185,7 @@ export type DashboardData = {
   };
   criticalAlerts: FlaggedTermWithComparison[];
   highAlerts: FlaggedTermWithComparison[];
+  newTerms: TermComparison[]; // Top 10 new terms from comparison
   totalQueriesAnalyzed: number;
   period: {
     startDate: string;

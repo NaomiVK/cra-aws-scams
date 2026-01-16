@@ -44,7 +44,7 @@ export class DynamoDbService implements OnModuleInit {
 
   /**
    * Get all seed phrases from DynamoDB
-   * Excludes whitelist, seen-term, and keyword categories
+   * Returns seed phrase categories (fakeExpiredBenefits, threatLanguage, etc.)
    */
   async getAllSeedPhrases(): Promise<SeedPhraseRecord[]> {
     if (!this.initialized) {
@@ -56,21 +56,19 @@ export class DynamoDbService implements OnModuleInit {
     if (!client) return [];
 
     try {
-      // Filter out whitelist and seen-term categories
-      // These should NOT be used for semantic matching
       const command = new ScanCommand({
         TableName: this.tableName,
-        FilterExpression: 'category <> :whitelist AND category <> :seenTerm',
-        ExpressionAttributeValues: {
-          ':whitelist': 'whitelist',
-          ':seenTerm': 'seen-term',
-        },
       });
 
       const response = await client.send(command);
-      const items = (response.Items || []) as SeedPhraseRecord[];
+      // Filter out keyword: prefixed items and reddit-search (those have their own methods)
+      const items = (response.Items || [])
+        .filter(item => {
+          const category = item.category as string;
+          return !category.startsWith('keyword:') && category !== 'reddit-search';
+        }) as SeedPhraseRecord[];
 
-      this.logger.log(`Loaded ${items.length} seed phrases from DynamoDB (excluded whitelist/seen-terms)`);
+      this.logger.log(`Loaded ${items.length} seed phrases from DynamoDB`);
       return items;
     } catch (error) {
       // Table might not exist yet - that's OK in dev
@@ -251,164 +249,6 @@ export class DynamoDbService implements OnModuleInit {
       return true;
     } catch (error) {
       this.logger.error(`Failed to persist keyword: ${error.message}`);
-      return false;
-    }
-  }
-
-  // ==================== SEEN TERMS TRACKING ====================
-
-  /**
-   * Get all seen flagged terms from DynamoDB
-   * Used to track which terms are "new" vs "returning"
-   */
-  async getSeenTerms(): Promise<Map<string, string>> {
-    if (!this.initialized) return new Map();
-
-    const client = this.awsConfigService.getDynamoDbClient();
-    if (!client) return new Map();
-
-    try {
-      const command = new ScanCommand({
-        TableName: this.tableName,
-        FilterExpression: 'category = :cat',
-        ExpressionAttributeValues: { ':cat': 'seen-term' },
-      });
-
-      const response = await client.send(command);
-      const items = response.Items || [];
-
-      const seenMap = new Map<string, string>();
-      for (const item of items) {
-        seenMap.set(item.term as string, item.firstSeen as string);
-      }
-
-      this.logger.log(`Loaded ${seenMap.size} seen terms from DynamoDB`);
-      return seenMap;
-    } catch (error) {
-      if (error.name === 'ResourceNotFoundException') return new Map();
-      this.logger.error(`Failed to scan seen terms: ${error.message}`);
-      return new Map();
-    }
-  }
-
-  /**
-   * Mark a term as seen (only if not already seen)
-   * Returns the firstSeen date (existing or new)
-   */
-  async markTermAsSeen(query: string): Promise<string> {
-    if (!this.initialized) return new Date().toISOString();
-
-    const client = this.awsConfigService.getDynamoDbClient();
-    if (!client) return new Date().toISOString();
-
-    const normalizedQuery = query.toLowerCase().trim();
-    const now = new Date().toISOString();
-
-    try {
-      // Use conditional write to only set if not exists
-      const command = new PutCommand({
-        TableName: this.tableName,
-        Item: {
-          category: 'seen-term',
-          term: normalizedQuery,
-          firstSeen: now,
-        },
-        ConditionExpression: 'attribute_not_exists(#t)',
-        ExpressionAttributeNames: { '#t': 'term' },
-      });
-
-      await client.send(command);
-      return now; // New term
-    } catch (error) {
-      if (error.name === 'ConditionalCheckFailedException') {
-        // Term already exists, that's fine
-        return ''; // Empty means it was already seen
-      }
-      this.logger.error(`Failed to mark term as seen: ${error.message}`);
-      return now;
-    }
-  }
-
-  /**
-   * Batch mark multiple terms as seen
-   * Returns map of query -> firstSeen date
-   */
-  async markTermsAsSeen(queries: string[]): Promise<Map<string, string>> {
-    const results = new Map<string, string>();
-
-    // Process in batches of 25 (DynamoDB limit)
-    for (let i = 0; i < queries.length; i += 25) {
-      const batch = queries.slice(i, i + 25);
-      await Promise.all(
-        batch.map(async (query) => {
-          const firstSeen = await this.markTermAsSeen(query);
-          if (firstSeen) {
-            results.set(query.toLowerCase().trim(), firstSeen);
-          }
-        })
-      );
-    }
-
-    return results;
-  }
-
-  // ==================== REDDIT SEARCH TERMS ====================
-
-  /**
-   * Get Reddit search terms from DynamoDB
-   * Looks for category = "reddit-search"
-   * Returns array of search terms
-   */
-  async getRedditSearchTerms(): Promise<string[]> {
-    if (!this.initialized) return [];
-
-    const client = this.awsConfigService.getDynamoDbClient();
-    if (!client) return [];
-
-    try {
-      const command = new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'category = :cat',
-        ExpressionAttributeValues: { ':cat': 'reddit-search' },
-      });
-
-      const response = await client.send(command);
-      const items = response.Items || [];
-      const terms = items.map(item => item.term as string);
-
-      this.logger.log(`Loaded ${terms.length} Reddit search terms from DynamoDB`);
-      return terms;
-    } catch (error) {
-      if (error.name === 'ResourceNotFoundException') return [];
-      this.logger.error(`Failed to get Reddit search terms: ${error.message}`);
-      return [];
-    }
-  }
-
-  /**
-   * Add a Reddit search term to DynamoDB
-   */
-  async addRedditSearchTerm(term: string): Promise<boolean> {
-    if (!this.initialized) return false;
-
-    const client = this.awsConfigService.getDynamoDbClient();
-    if (!client) return false;
-
-    try {
-      const command = new PutCommand({
-        TableName: this.tableName,
-        Item: {
-          category: 'reddit-search',
-          term: term.toLowerCase().trim(),
-          createdAt: new Date().toISOString(),
-        },
-      });
-
-      await client.send(command);
-      this.logger.log(`Added Reddit search term "${term}" to DynamoDB`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to add Reddit search term: ${error.message}`);
       return false;
     }
   }

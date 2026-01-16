@@ -110,17 +110,9 @@ export class EmbeddingService implements OnModuleInit {
         return;
       }
 
-      // Categories to exclude from semantic matching
-      const excludedCategories = ['seen-term', 'whitelist', 'excluded'];
-
       // Add DynamoDB phrases that don't already exist in local config
       let addedCount = 0;
       for (const record of dynamoPhrases) {
-        // Skip excluded categories (double-check in case DynamoDB filter missed them)
-        if (excludedCategories.includes(record.category)) {
-          continue;
-        }
-
         const exists = this.seedPhrases.some(p => p.text === record.term);
         if (!exists) {
           // Derive severity from category name (handles both old and new formats)
