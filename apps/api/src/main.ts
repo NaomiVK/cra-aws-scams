@@ -24,7 +24,7 @@ async function bootstrap() {
   app.enableCors({
     origin: environment.frontendUrl === '*' ? true : environment.frontendUrl,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Password'],
   });
 
   // Get port from environment

@@ -4,9 +4,10 @@ import {
   ScanCommand,
   DeleteCommand,
   QueryCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { AwsConfigService } from './aws-config.service';
-import { RedditPost } from '@cra-scam-detection/shared-types';
+import { RedditPost, UnifiedTerm, TermCategory } from '@cra-scam-detection/shared-types';
 
 export type SeedPhraseRecord = {
   category: string;
@@ -393,6 +394,219 @@ export class DynamoDbService implements OnModuleInit {
       if (error.name === 'ResourceNotFoundException') return [];
       this.logger.error(`Failed to get recent Reddit posts: ${error.message}`);
       return [];
+    }
+  }
+
+  // ==================== UNIFIED TERMS ====================
+
+  /**
+   * Get all unified terms from DynamoDB
+   * Returns terms with the unified structure (useForPatternMatch, useForEmbedding flags)
+   */
+  async getAllUnifiedTerms(): Promise<UnifiedTerm[]> {
+    if (!this.initialized) {
+      this.logger.warn('DynamoDB not initialized, returning empty list');
+      return [];
+    }
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return [];
+
+    try {
+      const command = new ScanCommand({
+        TableName: this.tableName,
+        FilterExpression: 'attribute_exists(useForPatternMatch) OR attribute_exists(useForEmbedding)',
+      });
+
+      const response = await client.send(command);
+      const items = (response.Items || []) as UnifiedTerm[];
+
+      this.logger.log(`Loaded ${items.length} unified terms from DynamoDB`);
+      return items;
+    } catch (error) {
+      if (error.name === 'ResourceNotFoundException') {
+        this.logger.warn(`Table ${this.tableName} not found`);
+        return [];
+      }
+      this.logger.error(`Failed to scan unified terms: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Save a unified term to DynamoDB
+   */
+  async saveUnifiedTerm(term: UnifiedTerm): Promise<boolean> {
+    if (!this.initialized) {
+      this.logger.warn('DynamoDB not initialized, skipping save');
+      return false;
+    }
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return false;
+
+    try {
+      const command = new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          category: term.category,
+          term: term.term.toLowerCase().trim(),
+          severity: term.severity,
+          useForPatternMatch: term.useForPatternMatch,
+          useForEmbedding: term.useForEmbedding,
+          mustContainCra: term.mustContainCra || false,
+          source: term.source,
+          createdAt: term.createdAt || new Date().toISOString(),
+          ...(term.removedAt && { removedAt: term.removedAt }),
+        },
+      });
+
+      await client.send(command);
+      this.logger.log(`Saved unified term "${term.term}" to DynamoDB (${term.category})`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to save unified term: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Mark a term as removed (soft delete)
+   * Sets the removedAt timestamp
+   */
+  async markTermRemoved(term: string, category: string): Promise<boolean> {
+    if (!this.initialized) return false;
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return false;
+
+    try {
+      const command = new UpdateCommand({
+        TableName: this.tableName,
+        Key: {
+          category,
+          term: term.toLowerCase().trim(),
+        },
+        UpdateExpression: 'SET removedAt = :removedAt',
+        ExpressionAttributeValues: {
+          ':removedAt': new Date().toISOString(),
+        },
+      });
+
+      await client.send(command);
+      this.logger.log(`Marked term "${term}" as removed`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to mark term as removed: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Restore a removed term (clear removedAt)
+   */
+  async restoreTerm(term: string, category: string): Promise<boolean> {
+    if (!this.initialized) return false;
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return false;
+
+    try {
+      const command = new UpdateCommand({
+        TableName: this.tableName,
+        Key: {
+          category,
+          term: term.toLowerCase().trim(),
+        },
+        UpdateExpression: 'REMOVE removedAt',
+      });
+
+      await client.send(command);
+      this.logger.log(`Restored term "${term}"`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to restore term: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Delete a term permanently (hard delete)
+   * Only use for admin-added terms, not JSON-seeded terms
+   */
+  async deleteUnifiedTerm(term: string, category: string): Promise<boolean> {
+    if (!this.initialized) return false;
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return false;
+
+    try {
+      const command = new DeleteCommand({
+        TableName: this.tableName,
+        Key: {
+          category,
+          term: term.toLowerCase().trim(),
+        },
+      });
+
+      await client.send(command);
+      this.logger.log(`Deleted unified term "${term}" from DynamoDB`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to delete unified term: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Get terms by category
+   */
+  async getTermsByCategory(category: TermCategory): Promise<UnifiedTerm[]> {
+    if (!this.initialized) return [];
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return [];
+
+    try {
+      const command = new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: 'category = :cat',
+        FilterExpression: 'attribute_exists(useForPatternMatch) OR attribute_exists(useForEmbedding)',
+        ExpressionAttributeValues: { ':cat': category },
+      });
+
+      const response = await client.send(command);
+      return (response.Items || []) as UnifiedTerm[];
+    } catch (error) {
+      if (error.name === 'ResourceNotFoundException') return [];
+      this.logger.error(`Failed to get terms by category: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Check if any unified terms exist in DynamoDB
+   * Used to determine if we need to seed from JSON
+   */
+  async hasUnifiedTerms(): Promise<boolean> {
+    if (!this.initialized) return false;
+
+    const client = this.awsConfigService.getDynamoDbClient();
+    if (!client) return false;
+
+    try {
+      const command = new ScanCommand({
+        TableName: this.tableName,
+        FilterExpression: 'attribute_exists(useForPatternMatch)',
+        Limit: 1,
+      });
+
+      const response = await client.send(command);
+      return (response.Items?.length || 0) > 0;
+    } catch (error) {
+      if (error.name === 'ResourceNotFoundException') return false;
+      this.logger.error(`Failed to check for unified terms: ${error.message}`);
+      return false;
     }
   }
 }

@@ -1,14 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, forwardRef, Inject } from '@nestjs/common';
 import OpenAI from 'openai';
 import { CacheService } from './cache.service';
 import { AwsConfigService } from './aws-config.service';
-import { DynamoDbService } from './dynamodb.service';
+import { TermService } from './term.service';
 import * as seedPhrasesConfig from '../config/seed-phrases.json';
-
-type SeedPhraseCategory = {
-  severity: string;
-  terms: string[];
-};
 
 type SeedPhrase = {
   text: string;
@@ -31,18 +26,6 @@ type QueryEmbeddingResult = {
   isScamRelated: boolean;
 };
 
-/**
- * Severity mapping for keyword categories
- * Used to derive severity from category name when loading from DynamoDB
- */
-const CATEGORY_SEVERITY_MAP: Record<string, string> = {
-  fakeExpiredBenefits: 'critical',
-  illegitimatePaymentMethods: 'critical',
-  threatLanguage: 'high',
-  suspiciousModifiers: 'medium',
-  scamPatterns: 'high',
-};
-
 @Injectable()
 export class EmbeddingService implements OnModuleInit {
   private readonly logger = new Logger(EmbeddingService.name);
@@ -56,7 +39,8 @@ export class EmbeddingService implements OnModuleInit {
   constructor(
     private readonly cacheService: CacheService,
     private readonly awsConfigService: AwsConfigService,
-    private readonly dynamoDbService: DynamoDbService,
+    @Inject(forwardRef(() => TermService))
+    private readonly termService: TermService,
   ) {
     this.similarityThreshold = seedPhrasesConfig.settings.similarityThreshold;
     this.model = seedPhrasesConfig.settings.model;
@@ -75,78 +59,49 @@ export class EmbeddingService implements OnModuleInit {
 
     this.openai = new OpenAI({ apiKey });
 
-    // Load seed phrases from local config file
-    this.loadSeedPhrases();
+    // Wait for TermService to be ready
+    await this.waitForTermService();
 
-    // Load additional seed phrases from DynamoDB (cloud persistence)
-    await this.loadSeedPhrasesFromDynamoDB();
+    // Load seed phrases from TermService
+    this.loadSeedPhrasesFromTermService();
 
     // Pre-compute embeddings for seed phrases
     await this.initializeSeedEmbeddings();
   }
 
   /**
-   * Derive severity from category name
-   * Handles both "keyword:categoryName" and "categoryName" formats
+   * Wait for TermService to initialize (max 30 seconds)
    */
-  private deriveSeverityFromCategory(category: string): string {
-    // Strip "keyword:" prefix if present
-    const baseCategory = category.startsWith('keyword:')
-      ? category.replace('keyword:', '')
-      : category;
+  private async waitForTermService(): Promise<void> {
+    const maxWait = 30000; // 30 seconds
+    const checkInterval = 100; // 100ms
+    let waited = 0;
 
-    return CATEGORY_SEVERITY_MAP[baseCategory] || 'medium';
+    while (!this.termService.isReady() && waited < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      waited += checkInterval;
+    }
+
+    if (this.termService.isReady()) {
+      this.logger.log(`TermService ready after ${waited}ms`);
+    } else {
+      this.logger.warn(`TermService not ready after ${maxWait}ms`);
+    }
   }
 
   /**
-   * Load seed phrases from DynamoDB and merge with local config
+   * Load seed phrases from TermService (unified terms with useForEmbedding = true)
    */
-  private async loadSeedPhrasesFromDynamoDB(): Promise<void> {
-    try {
-      const dynamoPhrases = await this.dynamoDbService.getAllSeedPhrases();
+  private loadSeedPhrasesFromTermService(): void {
+    const embeddingTerms = this.termService.getEmbeddingTerms();
 
-      if (dynamoPhrases.length === 0) {
-        this.logger.log('No additional seed phrases in DynamoDB');
-        return;
-      }
+    this.seedPhrases = embeddingTerms.map(term => ({
+      text: term.term,
+      category: term.category,
+      severity: term.severity,
+    }));
 
-      // Add DynamoDB phrases that don't already exist in local config
-      let addedCount = 0;
-      for (const record of dynamoPhrases) {
-        const exists = this.seedPhrases.some(p => p.text === record.term);
-        if (!exists) {
-          // Derive severity from category name (handles both old and new formats)
-          const severity = this.deriveSeverityFromCategory(record.category);
-
-          this.seedPhrases.push({
-            text: record.term,
-            category: record.category,
-            severity,
-          });
-          addedCount++;
-        }
-      }
-
-      this.logger.log(`Loaded ${addedCount} additional seed phrases from DynamoDB`);
-    } catch (error) {
-      this.logger.warn(`Failed to load seed phrases from DynamoDB: ${error.message}`);
-    }
-  }
-
-  private loadSeedPhrases(): void {
-    const phrases = seedPhrasesConfig.phrases as Record<string, SeedPhraseCategory>;
-
-    for (const [category, data] of Object.entries(phrases)) {
-      for (const term of data.terms) {
-        this.seedPhrases.push({
-          text: term,
-          category,
-          severity: data.severity,
-        });
-      }
-    }
-
-    this.logger.log(`Loaded ${this.seedPhrases.length} seed phrases from config`);
+    this.logger.log(`Loaded ${this.seedPhrases.length} embedding terms from TermService`);
   }
 
   private async initializeSeedEmbeddings(): Promise<void> {
@@ -367,5 +322,42 @@ export class EmbeddingService implements OnModuleInit {
 
     // Recompute embeddings
     await this.initializeSeedEmbeddings();
+  }
+
+  /**
+   * Remove a seed phrase from the embedding comparison set
+   * Updates in-memory cache so deleted terms no longer match in similarity checks
+   */
+  removeSeedPhrase(term: string): void {
+    const normalizedTerm = term.toLowerCase().trim();
+
+    // Find and remove from runtime array
+    const index = this.seedPhrases.findIndex(p => p.text === normalizedTerm);
+    if (index === -1) {
+      this.logger.debug(`Seed phrase "${normalizedTerm}" not found in embedding cache`);
+      return;
+    }
+
+    this.seedPhrases.splice(index, 1);
+
+    // Remove from embeddings map
+    this.seedEmbeddings.delete(normalizedTerm);
+
+    // Invalidate the cache so it gets rebuilt correctly on next restart
+    this.cacheService.del('seed-embeddings-v1');
+
+    this.logger.log(`Removed seed phrase "${normalizedTerm}" from embedding cache`);
+  }
+
+  /**
+   * Reload all seed phrases from TermService
+   * Useful after bulk changes to terms
+   */
+  async reloadSeedPhrases(): Promise<void> {
+    this.loadSeedPhrasesFromTermService();
+    this.cacheService.del('seed-embeddings-v1');
+    this.initialized = false;
+    await this.initializeSeedEmbeddings();
+    this.logger.log('Reloaded all seed phrases and embeddings');
   }
 }

@@ -9,3 +9,5 @@ export * from './aws-config.service';
 export * from './dynamodb.service';
 export * from './sentiment.service';
 export * from './reddit.service';
+export * from './auth.service';
+export * from './term.service';

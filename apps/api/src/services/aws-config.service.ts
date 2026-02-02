@@ -73,6 +73,7 @@ export class AwsConfigService implements OnModuleInit {
       REDDIT_CLIENT_SECRET: process.env['REDDIT_CLIENT_SECRET'] || '',
       REDDIT_USERNAME: process.env['REDDIT_USERNAME'] || '',
       REDDIT_PASSWORD: process.env['REDDIT_PASSWORD'] || '',
+      ADMIN_PASSWORD_HASH: process.env['ADMIN_PASSWORD_HASH'] || '',
     };
   }
 
@@ -100,6 +101,7 @@ export class AwsConfigService implements OnModuleInit {
           REDDIT_CLIENT_SECRET: secretData.REDDIT_CLIENT_SECRET || '',
           REDDIT_USERNAME: secretData.REDDIT_USERNAME || '',
           REDDIT_PASSWORD: secretData.REDDIT_PASSWORD || '',
+          ADMIN_PASSWORD_HASH: secretData.ADMIN_PASSWORD_HASH || '',
         };
 
         this.logger.log('Successfully loaded secrets from Secrets Manager');
@@ -141,6 +143,10 @@ export class AwsConfigService implements OnModuleInit {
 
   getRedditPassword(): string {
     return this.getSecret('REDDIT_PASSWORD');
+  }
+
+  getAdminPasswordHash(): string {
+    return this.getSecret('ADMIN_PASSWORD_HASH');
   }
 
   getDynamoDbClient(): DynamoDBDocumentClient | null {

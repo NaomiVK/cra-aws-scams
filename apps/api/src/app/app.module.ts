@@ -15,6 +15,8 @@ import {
   DynamoDbService,
   SentimentService,
   RedditService,
+  AuthService,
+  TermService,
 } from '../services';
 
 // Controllers
@@ -27,6 +29,9 @@ import {
   ConfigController,
   RedditController,
 } from '../controllers';
+
+// Guards
+import { AdminAuthGuard } from '../guards';
 
 @Module({
   imports: [],
@@ -46,6 +51,7 @@ import {
     DynamoDbService,
     CacheService,
     SearchConsoleService,
+    TermService,
     ScamDetectionService,
     ComparisonService,
     TrendsService,
@@ -53,6 +59,8 @@ import {
     EmbeddingService,
     SentimentService,
     RedditService,
+    AuthService,
+    AdminAuthGuard,
   ],
 })
 export class AppModule {}

@@ -3,36 +3,25 @@ import { CacheService } from './cache.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
 import { DynamoDbService } from './dynamodb.service';
+import { TermService } from './term.service';
 import {
   FlaggedTerm,
   Severity,
   ScamDetectionResult,
   ScamKeywordsConfig,
   DateRange,
+  UnifiedTerm,
+  TermCategory,
 } from '@cra-scam-detection/shared-types';
 import { SearchAnalyticsRow } from '@cra-scam-detection/shared-types';
 import { environment } from '../environments/environment';
 import * as scamKeywordsJson from '../config/scam-keywords.json';
-import * as seedPhrasesJson from '../config/seed-phrases.json';
 import { v4 as uuidv4 } from 'uuid';
-
-type SeedPhraseCategory = {
-  severity: string;
-  terms: string[];
-};
-
-// Seed phrase for matching
-type SeedPhraseMatch = {
-  term: string;
-  category: string;
-  severity: string;
-};
 
 @Injectable()
 export class ScamDetectionService implements OnModuleInit {
   private readonly logger = new Logger(ScamDetectionService.name);
   private keywordsConfig: ScamKeywordsConfig;
-  private allSeedPhrases: SeedPhraseMatch[] = []; // Seed phrases from JSON config + DynamoDB (merged)
 
   constructor(
     private readonly cacheService: CacheService,
@@ -40,6 +29,8 @@ export class ScamDetectionService implements OnModuleInit {
     @Inject(forwardRef(() => EmbeddingService))
     private readonly embeddingService: EmbeddingService,
     private readonly dynamoDbService: DynamoDbService,
+    @Inject(forwardRef(() => TermService))
+    private readonly termService: TermService,
   ) {
     this.keywordsConfig = scamKeywordsJson as unknown as ScamKeywordsConfig;
     this.logger.log(
@@ -48,136 +39,27 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
-    // Wait for DynamoDB service to be ready before loading
-    await this.waitForDynamoDB();
-    await this.loadFromDynamoDB();
+    // Wait for TermService to be ready
+    await this.waitForTermService();
   }
 
   /**
-   * Wait for DynamoDB service to initialize (max 10 seconds)
+   * Wait for TermService to initialize (max 10 seconds)
    */
-  private async waitForDynamoDB(): Promise<void> {
+  private async waitForTermService(): Promise<void> {
     const maxWait = 10000; // 10 seconds
     const checkInterval = 100; // 100ms
     let waited = 0;
 
-    while (!this.dynamoDbService.isReady() && waited < maxWait) {
+    while (!this.termService.isReady() && waited < maxWait) {
       await new Promise(resolve => setTimeout(resolve, checkInterval));
       waited += checkInterval;
     }
 
-    if (this.dynamoDbService.isReady()) {
-      this.logger.log(`[STARTUP] DynamoDB service ready after ${waited}ms`);
+    if (this.termService.isReady()) {
+      this.logger.log(`[STARTUP] TermService ready after ${waited}ms`);
     } else {
-      this.logger.warn(`[STARTUP] DynamoDB service not ready after ${maxWait}ms, proceeding with JSON config only`);
-    }
-  }
-
-  /**
-   * Load seed phrases from JSON config file (base phrases)
-   */
-  private loadSeedPhrasesFromJson(): void {
-    const phrases = seedPhrasesJson.phrases as Record<string, SeedPhraseCategory>;
-
-    for (const [category, data] of Object.entries(phrases)) {
-      for (const term of data.terms) {
-        this.allSeedPhrases.push({
-          term: term.toLowerCase(),
-          category,
-          severity: data.severity,
-        });
-      }
-    }
-
-    this.logger.log(`[STARTUP] Loaded ${this.allSeedPhrases.length} seed phrases from JSON config`);
-  }
-
-  /**
-   * Load keywords and seed phrases from DynamoDB and merge with JSON config
-   */
-  private async loadFromDynamoDB(): Promise<void> {
-    // First, load base seed phrases from JSON config
-    this.loadSeedPhrasesFromJson();
-
-    try {
-      // Log initial state from JSON
-      this.logger.log(`[STARTUP] Initial keyword counts from JSON config:`);
-      for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
-        this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
-      }
-
-      // Load keywords from DynamoDB
-      const dbKeywords = await this.dynamoDbService.getAllKeywords();
-      this.logger.log(`[STARTUP] Found ${dbKeywords.length} keyword records in DynamoDB`);
-
-      let keywordsAdded = 0;
-      const addedByCategory: Record<string, string[]> = {};
-
-      for (const record of dbKeywords) {
-        const categoryName = record.category.replace('keyword:', '');
-        const category = this.keywordsConfig.categories[categoryName as keyof ScamKeywordsConfig['categories']];
-        if (category && !category.terms.includes(record.term)) {
-          category.terms.push(record.term);
-          keywordsAdded++;
-          if (!addedByCategory[categoryName]) {
-            addedByCategory[categoryName] = [];
-          }
-          addedByCategory[categoryName].push(record.term);
-
-          // CRITICAL: Also add to allSeedPhrases so dashboard detection works
-          const termLower = record.term.toLowerCase();
-          const existsInSeedPhrases = this.allSeedPhrases.some(p => p.term === termLower);
-          if (!existsInSeedPhrases) {
-            this.allSeedPhrases.push({
-              term: termLower,
-              category: categoryName,
-              severity: category.severity,
-            });
-          }
-        }
-      }
-
-      if (keywordsAdded > 0) {
-        this.logger.log(`[STARTUP] Merged ${keywordsAdded} keywords from DynamoDB:`);
-        for (const [catName, terms] of Object.entries(addedByCategory)) {
-          this.logger.log(`  - ${catName}: +${terms.length} terms (${terms.slice(0, 5).join(', ')}${terms.length > 5 ? '...' : ''})`);
-        }
-      } else {
-        this.logger.log(`[STARTUP] No new keywords to merge from DynamoDB`);
-      }
-
-      // Log final state
-      this.logger.log(`[STARTUP] Final keyword counts after DynamoDB merge:`);
-      for (const [catName, cat] of Object.entries(this.keywordsConfig.categories)) {
-        this.logger.log(`  - ${catName}: ${cat.terms.length} terms`);
-      }
-
-      // Load additional seed phrases from DynamoDB and merge with JSON seed phrases
-      const dbSeedPhrases = await this.dynamoDbService.getAllSeedPhrases();
-      let addedFromDb = 0;
-
-      for (const record of dbSeedPhrases) {
-        if (!record.term) continue; // Skip records with missing term
-
-        const termLower = record.term.toLowerCase();
-        const exists = this.allSeedPhrases.some(p => p.term === termLower);
-
-        if (!exists) {
-          this.allSeedPhrases.push({
-            term: termLower,
-            category: record.category,
-            severity: record.severity || 'medium',
-          });
-          addedFromDb++;
-        }
-      }
-
-      this.logger.log(`[STARTUP] Added ${addedFromDb} additional seed phrases from DynamoDB`);
-      this.logger.log(`[STARTUP] Total seed phrases for Dashboard matching: ${this.allSeedPhrases.length}`);
-
-    } catch (error) {
-      this.logger.warn(`[STARTUP] Failed to load from DynamoDB: ${error.message}`);
-      this.logger.log(`[STARTUP] Using ${this.allSeedPhrases.length} seed phrases from JSON config only`);
+      this.logger.warn(`[STARTUP] TermService not ready after ${maxWait}ms`);
     }
   }
 
@@ -194,7 +76,9 @@ export class ScamDetectionService implements OnModuleInit {
           `[DETECT] Running scam detection for ${dateRange.startDate} to ${dateRange.endDate}`
         );
 
-        this.logger.log(`[DETECT] Using ${this.allSeedPhrases.length} seed phrases (JSON + DynamoDB)`);
+        // Get pattern match terms from TermService
+        const patternMatchTerms = this.termService.getPatternMatchTerms();
+        this.logger.log(`[DETECT] Using ${patternMatchTerms.length} pattern match terms from TermService`);
 
         // Get search analytics data
         const analyticsData =
@@ -211,7 +95,7 @@ export class ScamDetectionService implements OnModuleInit {
         const flaggedTerms: FlaggedTerm[] = [];
 
         for (const row of analyticsData) {
-          const result = this.analyzeQuery(row);
+          const result = this.analyzeQuery(row, patternMatchTerms);
           if (result) {
             flaggedTerms.push(result);
           }
@@ -261,18 +145,18 @@ export class ScamDetectionService implements OnModuleInit {
 
   /**
    * Analyze a single query for scam patterns
-   * Checks against all seed phrases (JSON config + DynamoDB)
+   * Checks against pattern match terms from TermService
    */
-  private analyzeQuery(row: SearchAnalyticsRow): FlaggedTerm | null {
+  private analyzeQuery(row: SearchAnalyticsRow, patternMatchTerms: UnifiedTerm[]): FlaggedTerm | null {
     const query = row.keys[0]?.toLowerCase() || '';
 
-    // Check against all seed phrases (JSON + DynamoDB)
-    const seedPhraseMatch = this.checkSeedPhrases(query);
-    if (!seedPhraseMatch.matched) {
+    // Check against pattern match terms
+    const matchResult = this.checkPatternMatchTerms(query, patternMatchTerms);
+    if (!matchResult.matched) {
       return null;
     }
 
-    let severity = this.mapSeverity(seedPhraseMatch.severity);
+    let severity = this.mapSeverity(matchResult.severity);
 
     // Apply seasonal multiplier (could upgrade severity)
     severity = this.applySeasonalAdjustment(severity);
@@ -285,8 +169,8 @@ export class ScamDetectionService implements OnModuleInit {
       ctr: row.ctr,
       position: row.position,
       severity,
-      matchedCategory: seedPhraseMatch.category,
-      matchedPatterns: seedPhraseMatch.patterns,
+      matchedCategory: matchResult.category,
+      matchedPatterns: matchResult.patterns,
       firstDetected: new Date().toISOString(),
       lastSeen: new Date().toISOString(),
       status: 'new',
@@ -298,29 +182,15 @@ export class ScamDetectionService implements OnModuleInit {
    * Used for filtering emerging threats that have already been added
    */
   isExactKeywordMatch(query: string): boolean {
-    const normalizedQuery = query.toLowerCase().trim();
-
-    // Check DynamoDB seed phrases
-    const inDynamoDB = this.allSeedPhrases.some(
-      (phrase) => phrase.term.toLowerCase().trim() === normalizedQuery
-    );
-    if (inDynamoDB) return true;
-
-    // Also check local keywords config (scam-keywords.json)
-    for (const category of Object.values(this.keywordsConfig.categories)) {
-      if (category.terms.some(term => term.toLowerCase().trim() === normalizedQuery)) {
-        return true;
-      }
-    }
-
-    return false;
+    return this.termService.termExists(query);
   }
 
   /**
-   * Check query against all seed phrases (JSON config + DynamoDB merged)
+   * Check query against pattern match terms from TermService
    */
-  private checkSeedPhrases(
-    query: string
+  private checkPatternMatchTerms(
+    query: string,
+    terms: UnifiedTerm[]
   ): { matched: boolean; patterns: string[]; category: string; severity: string } {
     const matched: string[] = [];
     let category = '';
@@ -328,13 +198,13 @@ export class ScamDetectionService implements OnModuleInit {
 
     const normalizedQuery = query.toLowerCase().trim();
 
-    for (const seedPhrase of this.allSeedPhrases) {
-      // Exact match only - query must exactly match the seed phrase term
-      if (normalizedQuery === seedPhrase.term.toLowerCase().trim()) {
-        matched.push(seedPhrase.term);
+    for (const term of terms) {
+      // Exact match only - query must exactly match the term
+      if (normalizedQuery === term.term.toLowerCase().trim()) {
+        matched.push(term.term);
         if (!category) {
-          category = seedPhrase.category;
-          severity = seedPhrase.severity;
+          category = term.category;
+          severity = term.severity;
         }
       }
     }
@@ -398,57 +268,41 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   /**
-   * Get all seed phrases from DynamoDB for UI dropdowns
+   * Get all seed phrases for UI dropdowns
+   * Returns terms from TermService
    */
   getSeedPhrases(): { term: string; category: string }[] {
-    return this.allSeedPhrases.map(sp => ({
-      term: sp.term,
-      category: sp.category,
+    return this.termService.getPatternMatchTerms().map(t => ({
+      term: t.term,
+      category: t.category,
     }));
   }
 
+  /**
+   * Add a keyword (legacy method - delegates to TermService)
+   * Kept for backward compatibility with existing API
+   */
   async addKeyword(term: string, category: keyof ScamKeywordsConfig['categories']): Promise<void> {
     this.logger.log(`[ADD_KEYWORD] Request to add "${term}" to category "${category}"`);
 
-    if (this.keywordsConfig.categories[category]) {
-      const terms = this.keywordsConfig.categories[category].terms;
-      const termLower = term.toLowerCase();
+    const severity = this.keywordsConfig.categories[category]?.severity || 'medium';
 
-      if (!terms.includes(termLower)) {
-        const countBefore = terms.length;
-        terms.push(termLower);
-        this.logger.log(`[ADD_KEYWORD] Added "${termLower}" to in-memory config (${category}: ${countBefore} → ${terms.length} terms)`);
+    // Add via TermService with both pattern match and embedding enabled
+    const success = await this.termService.addTerm({
+      term,
+      category: category as TermCategory,
+      severity: severity as Severity,
+      useForPatternMatch: true,
+      useForEmbedding: true,
+      mustContainCra: false,
+    });
 
-        // Also add to allSeedPhrases so dashboard detection picks it up immediately
-        const severity = this.keywordsConfig.categories[category].severity;
-        const existsInSeedPhrases = this.allSeedPhrases.some(p => p.term === termLower);
-        if (!existsInSeedPhrases) {
-          this.allSeedPhrases.push({
-            term: termLower,
-            category,
-            severity,
-          });
-          this.logger.log(`[ADD_KEYWORD] Added "${termLower}" to allSeedPhrases for dashboard detection`);
-        }
-
-        this.logger.log(`[ADD_KEYWORD] Flushing cache...`);
-        this.cacheService.flush();
-
-        // Persist to DynamoDB
-        this.logger.log(`[ADD_KEYWORD] Persisting to DynamoDB...`);
-        const dbSuccess = await this.dynamoDbService.addKeyword(term, category);
-        this.logger.log(`[ADD_KEYWORD] DynamoDB persist: ${dbSuccess ? 'SUCCESS' : 'FAILED'}`);
-
-        // Also add to embedding service for semantic matching
-        this.logger.log(`[ADD_KEYWORD] Adding to embedding service...`);
-        await this.embeddingService.addSeedPhrase(term, category, severity);
-
-        this.logger.log(`[ADD_KEYWORD] Complete. "${termLower}" is now active in ${category}`);
-      } else {
-        this.logger.log(`[ADD_KEYWORD] Term "${termLower}" already exists in ${category}, skipping`);
-      }
+    if (success) {
+      // Also add to embedding service for semantic matching (immediate effect)
+      await this.embeddingService.addSeedPhrase(term, category, severity);
+      this.logger.log(`[ADD_KEYWORD] Complete. "${term}" is now active in ${category}`);
     } else {
-      this.logger.warn(`[ADD_KEYWORD] Category "${category}" not found in config`);
+      this.logger.warn(`[ADD_KEYWORD] Failed to add "${term}" to ${category}`);
     }
   }
 }

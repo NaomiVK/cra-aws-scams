@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   DashboardData,
@@ -16,8 +16,11 @@ import {
   RedditPostsResponse,
   RedditStatsResponse,
   RedditPost,
+  UnifiedTermsResponse,
+  AddTermRequest,
 } from '@cra-scam-detection/shared-types';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -30,7 +33,19 @@ export type ApiResponse<T> = {
 })
 export class ApiService {
   private readonly http = inject(HttpClient);
+  private readonly authService = inject(AuthService);
   private readonly baseUrl = environment.apiUrl;
+
+  /**
+   * Get headers with auth if password is available
+   */
+  private getAuthHeaders(): HttpHeaders {
+    const password = this.authService.getPassword();
+    if (password) {
+      return new HttpHeaders().set('X-Admin-Password', password);
+    }
+    return new HttpHeaders();
+  }
 
   /**
    * Fetch dashboard data
@@ -324,6 +339,71 @@ export class ApiService {
   getRedditStatus(): Observable<ApiResponse<{ redditReady: boolean; subreddits: string[] }>> {
     return this.http.get<ApiResponse<{ redditReady: boolean; subreddits: string[] }>>(
       `${this.baseUrl}/reddit/status`
+    );
+  }
+
+  // ==================== AUTH ====================
+
+  /**
+   * Validate admin password
+   */
+  validateAdminPassword(password: string): Observable<ApiResponse<{ valid: boolean }>> {
+    return this.http.post<ApiResponse<{ valid: boolean }>>(
+      `${this.baseUrl}/scams/auth/validate`,
+      { password }
+    );
+  }
+
+  /**
+   * Check if auth is configured
+   */
+  getAuthStatus(): Observable<ApiResponse<{ configured: boolean }>> {
+    return this.http.get<ApiResponse<{ configured: boolean }>>(
+      `${this.baseUrl}/scams/auth/status`
+    );
+  }
+
+  // ==================== UNIFIED TERMS ====================
+
+  /**
+   * Get all unified terms (requires auth)
+   */
+  getAllTerms(): Observable<ApiResponse<UnifiedTermsResponse>> {
+    return this.http.get<ApiResponse<UnifiedTermsResponse>>(
+      `${this.baseUrl}/scams/terms`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  /**
+   * Add a new unified term (requires auth)
+   */
+  addUnifiedTerm(request: AddTermRequest): Observable<ApiResponse<{ message: string }>> {
+    return this.http.post<ApiResponse<{ message: string }>>(
+      `${this.baseUrl}/scams/terms`,
+      request,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  /**
+   * Remove a unified term (requires auth)
+   */
+  removeTerm(category: string, term: string): Observable<ApiResponse<{ message: string }>> {
+    return this.http.delete<ApiResponse<{ message: string }>>(
+      `${this.baseUrl}/scams/terms/${encodeURIComponent(category)}/${encodeURIComponent(term)}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  /**
+   * Restore a removed unified term (requires auth)
+   */
+  restoreTerm(category: string, term: string): Observable<ApiResponse<{ message: string }>> {
+    return this.http.post<ApiResponse<{ message: string }>>(
+      `${this.baseUrl}/scams/terms/${encodeURIComponent(category)}/${encodeURIComponent(term)}/restore`,
+      {},
+      { headers: this.getAuthHeaders() }
     );
   }
 }

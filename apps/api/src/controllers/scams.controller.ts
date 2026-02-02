@@ -1,11 +1,15 @@
-import { Controller, Get, Post, Query, Body, Param, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Query, Body, Param, Logger, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
 import { ScamDetectionService } from '../services/scam-detection.service';
 import { SearchConsoleService } from '../services/search-console.service';
 import { EmergingThreatService } from '../services/emerging-threat.service';
 import { ComparisonService } from '../services/comparison.service';
+import { AuthService } from '../services/auth.service';
+import { TermService } from '../services/term.service';
+import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import {
   DateRange,
   AddKeywordRequest,
+  AddTermRequest,
   FlaggedTerm,
   FlaggedTermWithComparison,
   TermComparison,
@@ -35,6 +39,8 @@ export class ScamsController {
     private readonly scamDetectionService: ScamDetectionService,
     private readonly emergingThreatService: EmergingThreatService,
     private readonly comparisonService: ComparisonService,
+    private readonly authService: AuthService,
+    private readonly termService: TermService,
   ) {}
 
   /**
@@ -341,6 +347,142 @@ export class ScamsController {
     } catch (error) {
       this.logger.error(`Failed to get seed phrases: ${error}`);
       throw new HttpException('Failed to get seed phrases', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // ==================== AUTH ENDPOINTS ====================
+
+  /**
+   * POST /api/scams/auth/validate
+   * Validate admin password
+   */
+  @Post('auth/validate')
+  async validateAdmin(@Body() body: { password: string }) {
+    try {
+      if (!body.password) {
+        throw new HttpException('Password required', HttpStatus.BAD_REQUEST);
+      }
+
+      const isValid = await this.authService.validatePassword(body.password);
+      return { success: true, data: { valid: isValid } };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Auth validation error: ${error}`);
+      throw new HttpException('Authentication failed', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * GET /api/scams/auth/status
+   * Check if auth is configured
+   */
+  @Get('auth/status')
+  getAuthStatus() {
+    return {
+      success: true,
+      data: {
+        configured: this.authService.isAuthConfigured(),
+      },
+    };
+  }
+
+  // ==================== UNIFIED TERM ENDPOINTS ====================
+
+  /**
+   * GET /api/scams/terms
+   * Get all unified terms (protected)
+   */
+  @Get('terms')
+  @UseGuards(AdminAuthGuard)
+  getAllTerms() {
+    try {
+      const response = this.termService.getUnifiedTermsResponse();
+      return { success: true, data: response };
+    } catch (error) {
+      this.logger.error(`Failed to get terms: ${error}`);
+      throw new HttpException('Failed to get terms', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * POST /api/scams/terms
+   * Add a new unified term (protected)
+   */
+  @Post('terms')
+  @UseGuards(AdminAuthGuard)
+  async addTerm(@Body() request: AddTermRequest) {
+    try {
+      if (!request.term || typeof request.term !== 'string' || request.term.trim().length === 0) {
+        throw new HttpException('Invalid term: must be a non-empty string', HttpStatus.BAD_REQUEST);
+      }
+      if (!request.category || typeof request.category !== 'string') {
+        throw new HttpException('Invalid category: must be a valid category name', HttpStatus.BAD_REQUEST);
+      }
+
+      this.logger.log(`Adding unified term "${request.term}" to category "${request.category}"`);
+      const success = await this.termService.addTerm(request);
+
+      if (!success) {
+        throw new HttpException('Term already exists or could not be added', HttpStatus.CONFLICT);
+      }
+
+      return { success: true, message: `Added "${request.term}" to ${request.category}` };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to add term: ${error}`);
+      throw new HttpException('Failed to add term', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * DELETE /api/scams/terms/:category/:term
+   * Remove a unified term (protected)
+   */
+  @Delete('terms/:category/:term')
+  @UseGuards(AdminAuthGuard)
+  async removeTerm(
+    @Param('category') category: string,
+    @Param('term') term: string
+  ) {
+    try {
+      this.logger.log(`Removing term "${term}" from category "${category}"`);
+      const success = await this.termService.removeTerm(decodeURIComponent(term), category);
+
+      if (!success) {
+        throw new HttpException('Term not found', HttpStatus.NOT_FOUND);
+      }
+
+      return { success: true, message: `Removed "${term}" from ${category}` };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to remove term: ${error}`);
+      throw new HttpException('Failed to remove term', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * POST /api/scams/terms/:category/:term/restore
+   * Restore a removed unified term (protected)
+   */
+  @Post('terms/:category/:term/restore')
+  @UseGuards(AdminAuthGuard)
+  async restoreTerm(
+    @Param('category') category: string,
+    @Param('term') term: string
+  ) {
+    try {
+      this.logger.log(`Restoring term "${term}" in category "${category}"`);
+      const success = await this.termService.restoreTerm(decodeURIComponent(term), category);
+
+      if (!success) {
+        throw new HttpException('Term not found or not removed', HttpStatus.NOT_FOUND);
+      }
+
+      return { success: true, message: `Restored "${term}" in ${category}` };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Failed to restore term: ${error}`);
+      throw new HttpException('Failed to restore term', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

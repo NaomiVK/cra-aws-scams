@@ -568,3 +568,60 @@ export type SeedPhraseRecord = {
   severity: string;
   createdAt: string;
 };
+
+// ============================================================================
+// UNIFIED TERM MANAGEMENT TYPES
+// Used for consolidated keyword/seed phrase management via DynamoDB
+// ============================================================================
+
+/**
+ * Category names for term classification
+ */
+export type TermCategory =
+  | 'fakeExpiredBenefits'
+  | 'illegitimatePaymentMethods'
+  | 'threatLanguage'
+  | 'suspiciousModifiers'
+  | 'scamPatterns';
+
+/**
+ * Unified term structure for DynamoDB storage
+ * Consolidates scam-keywords.json and seed-phrases.json into a single system
+ */
+export type UnifiedTerm = {
+  term: string;
+  category: TermCategory;
+  severity: Severity;
+  useForPatternMatch: boolean;  // Use in Dashboard pattern detection
+  useForEmbedding: boolean;     // Use in AI similarity detection
+  mustContainCra: boolean;      // Requires "cra" context (for pattern matching)
+  source: 'json' | 'admin';     // 'json' = seeded from config, 'admin' = added via UI
+  createdAt: string;            // ISO timestamp
+  removedAt?: string;           // ISO timestamp if removed (soft delete for JSON terms)
+};
+
+/**
+ * Request to add a new unified term
+ */
+export type AddTermRequest = {
+  term: string;
+  category: TermCategory;
+  severity: Severity;
+  useForPatternMatch: boolean;
+  useForEmbedding: boolean;
+  mustContainCra?: boolean;
+};
+
+/**
+ * Response for unified terms list
+ */
+export type UnifiedTermsResponse = {
+  terms: UnifiedTerm[];
+  removedTerms: UnifiedTerm[];  // Soft-deleted JSON terms that can be restored
+  categories: {
+    name: TermCategory;
+    displayName: string;
+    severity: Severity;
+    count: number;
+  }[];
+};
