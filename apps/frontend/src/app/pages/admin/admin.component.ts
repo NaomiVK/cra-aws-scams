@@ -517,6 +517,7 @@ export class AdminComponent implements OnInit {
       threatLanguage: 'Threat Language',
       suspiciousModifiers: 'Suspicious Modifiers',
       scamPatterns: 'Scam Patterns',
+      systemGenerated: 'System-Generated (AI Overview)',
     };
     return names[key] || key;
   }
@@ -528,6 +529,7 @@ export class AdminComponent implements OnInit {
       threatLanguage: 'high',
       suspiciousModifiers: 'medium',
       scamPatterns: 'high',
+      systemGenerated: 'info',
     };
     return severities[key] || 'medium';
   }
@@ -541,7 +543,7 @@ export class AdminComponent implements OnInit {
   }
 
   categoryKeys: CategoryKey[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers'];
-  allCategoryKeys: TermCategory[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers', 'scamPatterns'];
+  allCategoryKeys: TermCategory[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers', 'scamPatterns', 'systemGenerated'];
 
   exportConfig(): void {
     const config = this.keywordsConfig();

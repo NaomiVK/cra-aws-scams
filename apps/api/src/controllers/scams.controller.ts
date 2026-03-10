@@ -204,6 +204,7 @@ export class ScamsController {
           summary: detection.summary,
           criticalAlerts,
           highAlerts,
+          systemGenerated: detection.systemGenerated,
           newTerms,
           totalQueriesAnalyzed: detection.totalQueriesAnalyzed,
           period: dateRange,

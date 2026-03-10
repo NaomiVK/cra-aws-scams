@@ -4,6 +4,7 @@ import { ComparisonService } from './comparison.service';
 import { ScamDetectionService } from './scam-detection.service';
 import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
+import { SystemGeneratedService } from './system-generated.service';
 import {
   EmergingThreat,
   EmergingThreatsResponse,
@@ -66,6 +67,7 @@ export class EmergingThreatService {
     private readonly scamDetectionService: ScamDetectionService,
     private readonly searchConsoleService: SearchConsoleService,
     private readonly embeddingService: EmbeddingService,
+    private readonly systemGeneratedService: SystemGeneratedService,
   ) {}
 
   /**
@@ -125,10 +127,16 @@ export class EmergingThreatService {
         // STEP 1: Pre-filter terms that are worth analyzing
         // Focus on NEW terms and GROWING terms (not all 25k+ queries)
         // Also exclude terms already added to the scam keywords list
+        // Also exclude system-generated (AI Overview) queries
         const candidateTerms = comparison.terms.filter(term => {
           // CRITICAL: Skip terms that have already been added as scam keywords
           // These should NEVER appear in emerging threats again
           if (this.scamDetectionService.isExactKeywordMatch(term.query)) {
+            return false;
+          }
+
+          // Skip system-generated (AI Overview) queries
+          if (this.systemGeneratedService.isSystemGenerated(term.query)) {
             return false;
           }
 

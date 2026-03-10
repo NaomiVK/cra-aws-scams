@@ -138,24 +138,18 @@
 
   "seasonalMultipliers": {
     "taxSeason": {
-      "startMonth": 3,
-      "startDay": 15,
+      "startMonth": 2,
+      "startDay": 17,
       "endMonth": 4,
       "endDay": 30,
       "multiplier": 1.3,
-      "description": "Tax filing season - refund scams peak"
+      "description": "Canadian tax filing season - CRA NETFILE opens mid-Feb, deadline Apr 30"
     },
     "gstPayment": {
       "days": [5],
       "months": [1, 4, 7, 10],
       "multiplier": 1.5,
       "description": "GST/HST credit payment dates"
-    },
-    "ccrPayment": {
-      "days": [15],
-      "months": [1, 4, 7, 10],
-      "multiplier": 1.5,
-      "description": "Canada Carbon Rebate payment dates"
     }
   }
 }

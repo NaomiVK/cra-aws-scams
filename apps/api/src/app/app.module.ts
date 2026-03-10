@@ -17,6 +17,7 @@ import {
   RedditService,
   AuthService,
   TermService,
+  SystemGeneratedService,
 } from '../services';
 
 // Controllers
@@ -57,6 +58,7 @@ import { AdminAuthGuard } from '../guards';
     TrendsService,
     EmergingThreatService,
     EmbeddingService,
+    SystemGeneratedService,
     SentimentService,
     RedditService,
     AuthService,

@@ -4,6 +4,7 @@ import { SearchConsoleService } from './search-console.service';
 import { EmbeddingService } from './embedding.service';
 import { DynamoDbService } from './dynamodb.service';
 import { TermService } from './term.service';
+import { SystemGeneratedService } from './system-generated.service';
 import {
   FlaggedTerm,
   Severity,
@@ -31,6 +32,7 @@ export class ScamDetectionService implements OnModuleInit {
     private readonly dynamoDbService: DynamoDbService,
     @Inject(forwardRef(() => TermService))
     private readonly termService: TermService,
+    private readonly systemGeneratedService: SystemGeneratedService,
   ) {
     this.keywordsConfig = scamKeywordsJson as unknown as ScamKeywordsConfig;
     this.logger.log(
@@ -91,10 +93,25 @@ export class ScamDetectionService implements OnModuleInit {
           `Analyzing ${analyticsData.length} queries with ${environment.scamDetection.impressionThreshold}+ impressions`
         );
 
-        // Analyze each query
+        // STEP 1: Detect system-generated (AI Overview) queries FIRST
+        const systemGenerated = this.systemGeneratedService.detectSystemGeneratedQueries(analyticsData);
+        const systemGeneratedKeys = new Set(systemGenerated.map(sg => sg.query.toLowerCase()));
+
+        this.logger.log(
+          `[DETECT] Filtered out ${systemGenerated.length} system-generated queries`
+        );
+
+        // STEP 2: Analyze remaining queries (excluding system-generated)
         const flaggedTerms: FlaggedTerm[] = [];
 
         for (const row of analyticsData) {
+          const query = row.keys[0]?.toLowerCase() || '';
+
+          // Skip system-generated queries
+          if (systemGeneratedKeys.has(query)) {
+            continue;
+          }
+
           const result = this.analyzeQuery(row, patternMatchTerms);
           if (result) {
             flaggedTerms.push(result);
@@ -121,6 +138,7 @@ export class ScamDetectionService implements OnModuleInit {
           period: dateRange,
           totalQueriesAnalyzed: analyticsData.length,
           flaggedTerms,
+          systemGenerated,
           summary: {
             critical: flaggedTerms.filter((t) => t.severity === 'critical')
               .length,
@@ -128,6 +146,7 @@ export class ScamDetectionService implements OnModuleInit {
             medium: flaggedTerms.filter((t) => t.severity === 'medium').length,
             low: flaggedTerms.filter((t) => t.severity === 'low').length,
             info: flaggedTerms.filter((t) => t.severity === 'info').length,
+            systemGenerated: systemGenerated.length,
             total: flaggedTerms.length,
           },
         };
@@ -246,12 +265,10 @@ export class ScamDetectionService implements OnModuleInit {
       }
     }
 
-    // Check GST/CCR payment dates
+    // Check GST/HST credit payment dates
     const isPaymentDate =
-      (seasonal.gstPayment.months.includes(month) &&
-        seasonal.gstPayment.days.includes(day)) ||
-      (seasonal.ccrPayment.months.includes(month) &&
-        seasonal.ccrPayment.days.includes(day));
+      seasonal.gstPayment.months.includes(month) &&
+      seasonal.gstPayment.days.includes(day);
 
     if (isPaymentDate) {
       // On payment dates, upgrade high to critical

@@ -36,6 +36,7 @@ const CATEGORY_DISPLAY_NAMES: Record<TermCategory, string> = {
   threatLanguage: 'Threat Language',
   suspiciousModifiers: 'Suspicious Modifiers',
   scamPatterns: 'Scam Patterns',
+  systemGenerated: 'System-Generated (AI Overview)',
 };
 
 /**
@@ -47,6 +48,7 @@ const CATEGORY_SEVERITY: Record<TermCategory, Severity> = {
   threatLanguage: 'high',
   suspiciousModifiers: 'medium',
   scamPatterns: 'high',
+  systemGenerated: 'info',
 };
 
 /**
@@ -71,7 +73,29 @@ export class TermService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    // Wait for DynamoDbService to be ready before loading terms
+    await this.waitForDynamoDb();
     await this.loadTerms();
+  }
+
+  /**
+   * Wait for DynamoDbService to initialize (max 30 seconds)
+   */
+  private async waitForDynamoDb(): Promise<void> {
+    const maxWait = 30000; // 30 seconds
+    const checkInterval = 100; // 100ms
+    let waited = 0;
+
+    while (!this.dynamoDbService.isReady() && waited < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      waited += checkInterval;
+    }
+
+    if (this.dynamoDbService.isReady()) {
+      this.logger.log(`[TERM_SERVICE] DynamoDbService ready after ${waited}ms`);
+    } else {
+      this.logger.warn(`[TERM_SERVICE] DynamoDbService not ready after ${maxWait}ms - proceeding without DB`);
+    }
   }
 
   /**
@@ -478,6 +502,7 @@ export class TermService implements OnModuleInit {
       'threatLanguage',
       'suspiciousModifiers',
       'scamPatterns',
+      'systemGenerated',
     ];
 
     for (const cat of allCategories) {

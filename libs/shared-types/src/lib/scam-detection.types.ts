@@ -62,12 +62,14 @@ export type ScamDetectionResult = {
   };
   totalQueriesAnalyzed: number;
   flaggedTerms: FlaggedTerm[];
+  systemGenerated: SystemGeneratedQuery[];
   summary: {
     critical: number;
     high: number;
     medium: number;
     low: number;
     info: number;
+    systemGenerated: number;
     total: number;
   };
 };
@@ -108,11 +110,6 @@ export type ScamKeywordsConfig = {
       multiplier: number;
     };
     gstPayment: {
-      days: number[];
-      months: number[];
-      multiplier: number;
-    };
-    ccrPayment: {
       days: number[];
       months: number[];
       multiplier: number;
@@ -172,6 +169,20 @@ export type TrendingTermData = {
 };
 
 /**
+ * System-generated query (AI Overview noise)
+ * Detected via headline heuristics, NOT scam-related
+ */
+export type SystemGeneratedQuery = {
+  id: string;
+  query: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  position: number;
+  matchedSignals: string[]; // Which heuristic signals triggered detection
+};
+
+/**
  * Dashboard data response
  */
 export type DashboardData = {
@@ -181,10 +192,12 @@ export type DashboardData = {
     medium: number;
     low: number;
     info: number;
+    systemGenerated: number;
     total: number;
   };
   criticalAlerts: FlaggedTermWithComparison[];
   highAlerts: FlaggedTermWithComparison[];
+  systemGenerated: SystemGeneratedQuery[];
   newTerms: TermComparison[]; // Top 10 new terms from comparison
   totalQueriesAnalyzed: number;
   period: {
@@ -582,7 +595,8 @@ export type TermCategory =
   | 'illegitimatePaymentMethods'
   | 'threatLanguage'
   | 'suspiciousModifiers'
-  | 'scamPatterns';
+  | 'scamPatterns'
+  | 'systemGenerated';
 
 /**
  * Unified term structure for DynamoDB storage
