@@ -24,7 +24,6 @@ const PAGE_SIZE = 500;
 const MAX_PAGES = 10;
 import { environment } from '../environments/environment';
 import { v4 as uuidv4 } from 'uuid';
-import * as stringSimilarity from 'string-similarity';
 
 /**
  * Dynamic pattern detection regexes
@@ -349,23 +348,11 @@ export class EmergingThreatService {
     // Find matching dynamic patterns
     const matchedPatterns = this.checkDynamicPatterns(query);
 
-    // Find similar known scam terms using embeddings
-    // Only fall back to string similarity if embedding service is NOT available
-    let similarScams: string[] = [];
-    if (filteredEmbeddingMatch) {
-      // Embedding match found - use it
-      similarScams = [`${filteredEmbeddingMatch.matchedPhrase} (${Math.round(filteredEmbeddingMatch.similarity * 100)}% semantic match)`];
-    } else if (!this.embeddingService.isReady()) {
-      // Embedding service not available - fall back to string similarity
-      similarScams = this.findSimilarScams(query);
-    }
-    // If embedding service IS ready but no match found, similarScams stays empty (no fallback)
-
     // Calculate velocity metrics
     const velocity = this.calculateVelocity(term, days);
 
     // Calculate composite risk score (now includes velocity)
-    const riskScore = this.calculateRiskScore(term, ctrAnomaly, matchedPatterns, similarScams, filteredEmbeddingMatch, velocity);
+    const riskScore = this.calculateRiskScore(term, ctrAnomaly, matchedPatterns, filteredEmbeddingMatch, velocity);
 
     // Determine risk level
     const riskLevel = this.getRiskLevel(riskScore);
@@ -374,7 +361,7 @@ export class EmergingThreatService {
     // CTR anomaly alone is NOT enough - irrelevant queries (e.g., "stat holidays ontario 2025")
     // naturally have low CTR when they show CRA pages because users don't want CRA results.
     // We must have evidence the query is SCAM-RELATED, not just that CTR is low.
-    const hasScamSignal = filteredEmbeddingMatch || matchedPatterns.length > 0 || similarScams.length > 0;
+    const hasScamSignal = filteredEmbeddingMatch || matchedPatterns.length > 0;
 
     if (!hasScamSignal) {
       // No scam indicators at all - this query is not related to scams
@@ -394,7 +381,10 @@ export class EmergingThreatService {
       riskLevel,
       ctrAnomaly,
       matchedPatterns,
-      similarScams,
+      similarScams: [],
+      embeddingMatch: filteredEmbeddingMatch
+        ? { matchedPhrase: filteredEmbeddingMatch.matchedPhrase, similarity: filteredEmbeddingMatch.similarity }
+        : undefined,
       current: term.current,
       previous: term.previous,
       change: {
@@ -480,49 +470,6 @@ export class EmergingThreatService {
   }
 
   /**
-   * Find known scam terms similar to this query
-   * Uses fuzzy string matching with 70% similarity threshold
-   */
-  findSimilarScams(query: string): string[] {
-    const config = this.scamDetectionService.getKeywordsConfig();
-    const allScamTerms: string[] = [
-      ...config.categories.fakeExpiredBenefits.terms,
-      ...config.categories.illegitimatePaymentMethods.terms,
-      ...config.categories.threatLanguage.terms,
-    ];
-
-    const similar: string[] = [];
-    const queryLower = query.toLowerCase();
-
-    for (const scamTerm of allScamTerms) {
-      const similarity = stringSimilarity.compareTwoStrings(
-        queryLower,
-        scamTerm.toLowerCase()
-      );
-
-      if (similarity >= 0.7) {
-        similar.push(`${scamTerm} (${Math.round(similarity * 100)}%)`);
-      }
-    }
-
-    // Also check for shared keywords (at least 2 meaningful words in common)
-    const queryWords = new Set(queryLower.split(/\s+/).filter(w => w.length > 2));
-    for (const scamTerm of allScamTerms) {
-      const scamWords = new Set(scamTerm.toLowerCase().split(/\s+/).filter(w => w.length > 2));
-      const intersection = [...queryWords].filter(w => scamWords.has(w));
-
-      if (intersection.length >= 2) {
-        const matchStr = `${scamTerm} (shared: ${intersection.join(', ')})`;
-        if (!similar.includes(matchStr)) {
-          similar.push(matchStr);
-        }
-      }
-    }
-
-    return similar.slice(0, 5); // Limit to top 5
-  }
-
-  /**
    * Calculate composite risk score (0-100)
    *
    * Formula includes velocity factor (5-8% weight):
@@ -533,7 +480,6 @@ export class EmergingThreatService {
     term: TermComparison,
     ctrAnomaly: CTRAnomaly,
     matchedPatterns: string[],
-    similarScams: string[],
     embeddingMatch?: { similarity: number; matchedPhrase: string; category: string; severity: string },
     velocity?: VelocityMetrics
   ): number {
@@ -624,12 +570,6 @@ export class EmergingThreatService {
     if (matchedPatterns.length > 0) {
       const patternBoost = Math.min(20, matchedPatterns.length * 5);
       score += patternBoost;
-    }
-
-    // Boost for similar known scams (only if no embedding match - avoid double counting)
-    if (!embeddingMatch && similarScams.length > 0) {
-      const similarBoost = Math.min(15, similarScams.length * 5);
-      score += similarBoost;
     }
 
     return Math.min(100, Math.round(score));

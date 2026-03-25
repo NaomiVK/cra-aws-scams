@@ -64,7 +64,7 @@
     <!-- Authenticated - Show tabs -->
     <ul ngbNav #nav="ngbNav" [(activeId)]="activeTab" class="nav-tabs" (navChange)="onTabChange($event.nextId)">
       <li [ngbNavItem]="1">
-        <button ngbNavLink>Emerging Threats</button>
+        <button ngbNavLink>Emerging Misinformation</button>
         <ng-template ngbNavContent>
           <div class="pt-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -129,7 +129,7 @@
                                  ngbTooltip="Select all on this page">
                         </th>
                         <th ngbTooltip="Search query from Google Search Console">Query</th>
-                        <th ngbTooltip="Composite risk score (0-100) based on CTR anomaly, position, volume, velocity, and pattern matches">Risk</th>
+                        <th ngbTooltip="Composite risk score (0-100) based on semantic similarity, CTR anomaly, volume growth, velocity, and emergence">Risk</th>
                         <th ngbTooltip="Click-through rate compared to expected CTR for this position. Low CTR at good position = users clicking scam sites instead">CTR Anomaly</th>
                         <th ngbTooltip="Average ranking position in search results">Pos</th>
                         <th ngbTooltip="Number of times users saw CRA pages for this query">Impr</th>
@@ -212,8 +212,8 @@
                             @for (pattern of threat.matchedPatterns; track pattern) {
                               <span class="badge bg-secondary me-1 mb-1" ngbTooltip="Regex pattern match">{{ pattern }}</span>
                             }
-                            @for (scam of threat.similarScams; track scam) {
-                              <span class="badge bg-warning text-dark me-1 mb-1" ngbTooltip="Semantic similarity to known scam phrase">{{ scam }}</span>
+                            @if (threat.embeddingMatch) {
+                              <span class="badge bg-warning text-dark me-1 mb-1" ngbTooltip="Semantic similarity to known scam phrase">{{ threat.embeddingMatch.matchedPhrase }} ({{ (threat.embeddingMatch.similarity * 100).toFixed(0) }}% semantic match)</span>
                             }
                           </td>
                           <td>

@@ -301,7 +301,13 @@ export type EmergingThreat = {
 
   // Pattern matching results
   matchedPatterns: string[];  // e.g., ["DOLLAR_AMOUNT: $500", "YEAR: 2025"]
-  similarScams: string[];     // Known scam terms with >70% similarity
+  similarScams: string[];     // Deprecated, kept for compatibility
+
+  // Embedding match (semantic similarity to known scam phrases)
+  embeddingMatch?: {
+    matchedPhrase: string;
+    similarity: number;       // 0-1 cosine similarity
+  };
 
   // Current period metrics
   current: {

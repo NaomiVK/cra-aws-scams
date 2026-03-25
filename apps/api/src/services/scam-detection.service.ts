@@ -9,20 +9,25 @@ import {
   FlaggedTerm,
   Severity,
   ScamDetectionResult,
-  ScamKeywordsConfig,
   DateRange,
   UnifiedTerm,
   TermCategory,
 } from '@cra-scam-detection/shared-types';
 import { SearchAnalyticsRow } from '@cra-scam-detection/shared-types';
 import { environment } from '../environments/environment';
-import * as scamKeywordsJson from '../config/scam-keywords.json';
 import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * Seasonal multipliers — hardcoded CRA calendar dates
+ */
+const SEASONAL = {
+  taxSeason: { startMonth: 2, startDay: 17, endMonth: 4, endDay: 30 },
+  gstPayment: { days: [5], months: [1, 4, 7, 10] },
+};
 
 @Injectable()
 export class ScamDetectionService implements OnModuleInit {
   private readonly logger = new Logger(ScamDetectionService.name);
-  private keywordsConfig: ScamKeywordsConfig;
 
   constructor(
     private readonly cacheService: CacheService,
@@ -33,12 +38,7 @@ export class ScamDetectionService implements OnModuleInit {
     @Inject(forwardRef(() => TermService))
     private readonly termService: TermService,
     private readonly systemGeneratedService: SystemGeneratedService,
-  ) {
-    this.keywordsConfig = scamKeywordsJson as unknown as ScamKeywordsConfig;
-    this.logger.log(
-      `Loaded scam keywords config v${this.keywordsConfig.version}`
-    );
-  }
+  ) {}
 
   async onModuleInit(): Promise<void> {
     // Wait for TermService to be ready
@@ -248,18 +248,15 @@ export class ScamDetectionService implements OnModuleInit {
     const month = now.getMonth() + 1; // 1-12
     const day = now.getDate();
 
-    const seasonal = this.keywordsConfig.seasonalMultipliers;
-
-    // Check tax season
+    // Check tax season (NETFILE opens mid-Feb, deadline Apr 30)
     if (
-      (month === seasonal.taxSeason.startMonth &&
-        day >= seasonal.taxSeason.startDay) ||
-      (month > seasonal.taxSeason.startMonth &&
-        month < seasonal.taxSeason.endMonth) ||
-      (month === seasonal.taxSeason.endMonth &&
-        day <= seasonal.taxSeason.endDay)
+      (month === SEASONAL.taxSeason.startMonth &&
+        day >= SEASONAL.taxSeason.startDay) ||
+      (month > SEASONAL.taxSeason.startMonth &&
+        month < SEASONAL.taxSeason.endMonth) ||
+      (month === SEASONAL.taxSeason.endMonth &&
+        day <= SEASONAL.taxSeason.endDay)
     ) {
-      // During tax season, upgrade medium to high
       if (baseSeverity === 'medium') {
         return 'high';
       }
@@ -267,21 +264,16 @@ export class ScamDetectionService implements OnModuleInit {
 
     // Check GST/HST credit payment dates
     const isPaymentDate =
-      seasonal.gstPayment.months.includes(month) &&
-      seasonal.gstPayment.days.includes(day);
+      SEASONAL.gstPayment.months.includes(month) &&
+      SEASONAL.gstPayment.days.includes(day);
 
     if (isPaymentDate) {
-      // On payment dates, upgrade high to critical
       if (baseSeverity === 'high') {
         return 'critical';
       }
     }
 
     return baseSeverity;
-  }
-
-  getKeywordsConfig(): ScamKeywordsConfig {
-    return this.keywordsConfig;
   }
 
   /**
@@ -296,26 +288,23 @@ export class ScamDetectionService implements OnModuleInit {
   }
 
   /**
-   * Add a keyword (legacy method - delegates to TermService)
-   * Kept for backward compatibility with existing API
+   * Add a keyword - delegates to TermService
    */
-  async addKeyword(term: string, category: keyof ScamKeywordsConfig['categories']): Promise<void> {
+  async addKeyword(term: string, category: TermCategory): Promise<void> {
     this.logger.log(`[ADD_KEYWORD] Request to add "${term}" to category "${category}"`);
 
-    const severity = this.keywordsConfig.categories[category]?.severity || 'medium';
+    const severity = this.termService.getCategorySeverity(category);
 
-    // Add via TermService with both pattern match and embedding enabled
     const success = await this.termService.addTerm({
       term,
-      category: category as TermCategory,
-      severity: severity as Severity,
+      category,
+      severity,
       useForPatternMatch: true,
       useForEmbedding: true,
       mustContainCra: false,
     });
 
     if (success) {
-      // Also add to embedding service for semantic matching (immediate effect)
       await this.embeddingService.addSeedPhrase(term, category, severity);
       this.logger.log(`[ADD_KEYWORD] Complete. "${term}" is now active in ${category}`);
     } else {

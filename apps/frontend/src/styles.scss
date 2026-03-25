@@ -1,6 +1,7 @@
 /* Bootstrap imports */
 @use 'bootstrap/scss/bootstrap';
 @use 'bootstrap-icons/font/bootstrap-icons.css';
+@import 'css/cra-custom';
 
 /* Custom variables */
 :root {
@@ -8,11 +9,6 @@
   --severity-high: #fd7e14;
   --severity-medium: #ffc107;
   --severity-low: #17a2b8;
-}
-
-/* Global styles */
-body {
-  background-color: #f8f9fa;
 }
 
 /* Severity badge colors */

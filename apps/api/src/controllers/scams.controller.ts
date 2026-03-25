@@ -129,17 +129,13 @@ export class ScamsController {
 
   /**
    * GET /api/scams/keywords
-   * Get the current scam keywords configuration
+   * Get scam keywords configuration (built from DynamoDB terms)
    */
   @Get('keywords')
-  async getKeywordsConfig() {
+  getKeywordsConfig() {
     try {
-      const config = this.scamDetectionService.getKeywordsConfig();
-
-      return {
-        success: true,
-        data: config,
-      };
+      const response = this.termService.getKeywordsConfig();
+      return { success: true, data: response };
     } catch (error) {
       this.logger.error(`Failed to get keywords config: ${error}`);
       throw new HttpException('Failed to get keywords configuration', HttpStatus.INTERNAL_SERVER_ERROR);

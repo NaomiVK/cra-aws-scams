@@ -8,6 +8,8 @@ import {
   TermCategory,
   AddTermRequest,
   UnifiedTermsResponse,
+  ScamKeywordsConfig,
+  KeywordCategory,
 } from '@cra-scam-detection/shared-types';
 import * as scamKeywordsJson from '../config/scam-keywords.json';
 import * as seedPhrasesJson from '../config/seed-phrases.json';
@@ -28,16 +30,47 @@ type SeedPhraseCategory = {
 };
 
 /**
+ * Category metadata — static definitions for each category
+ */
+const CATEGORY_META: Record<TermCategory, { id: string; name: string; description: string }> = {
+  fakeExpiredBenefits: {
+    id: 'fake-expired',
+    name: 'Fake/Expired Benefits',
+    description: 'Benefits that don\'t exist or have ended - people searching these are likely scam victims',
+  },
+  illegitimatePaymentMethods: {
+    id: 'payment-methods',
+    name: 'CRA + Illegitimate Payment Methods',
+    description: 'CRA never uses these payment/contact methods - any search combining CRA with these is suspicious',
+  },
+  threatLanguage: {
+    id: 'threats',
+    name: 'CRA + Threat Language',
+    description: 'CRA never threatens arrest or uses aggressive tactics',
+  },
+  suspiciousModifiers: {
+    id: 'modifiers',
+    name: 'Suspicious Modifiers',
+    description: 'Legitimate benefits + these words = potential scam content',
+  },
+  scamPatterns: {
+    id: 'scam-patterns',
+    name: 'Scam Patterns',
+    description: 'General scam-related patterns',
+  },
+  systemGenerated: {
+    id: 'system-generated',
+    name: 'System-Generated (AI Overview)',
+    description: 'AI-generated query noise from Google AI Overview',
+  },
+};
+
+/**
  * Category display names for UI
  */
-const CATEGORY_DISPLAY_NAMES: Record<TermCategory, string> = {
-  fakeExpiredBenefits: 'Fake/Expired Benefits',
-  illegitimatePaymentMethods: 'Illegitimate Payment Methods',
-  threatLanguage: 'Threat Language',
-  suspiciousModifiers: 'Suspicious Modifiers',
-  scamPatterns: 'Scam Patterns',
-  systemGenerated: 'System-Generated (AI Overview)',
-};
+const CATEGORY_DISPLAY_NAMES: Record<TermCategory, string> = Object.fromEntries(
+  Object.entries(CATEGORY_META).map(([k, v]) => [k, v.name])
+) as Record<TermCategory, string>;
 
 /**
  * Default severity by category
@@ -519,6 +552,53 @@ export class TermService implements OnModuleInit {
       removedTerms,
       categories,
     };
+  }
+
+  /**
+   * Build ScamKeywordsConfig from DynamoDB terms (replaces scam-keywords.json)
+   */
+  getKeywordsConfig(): ScamKeywordsConfig {
+    const keywordCategories: (keyof ScamKeywordsConfig['categories'])[] = [
+      'fakeExpiredBenefits',
+      'illegitimatePaymentMethods',
+      'threatLanguage',
+      'suspiciousModifiers',
+    ];
+
+    const categories = {} as ScamKeywordsConfig['categories'];
+    for (const cat of keywordCategories) {
+      const meta = CATEGORY_META[cat];
+      const terms = this.getTermsByCategory(cat).map(t => t.term);
+      const mustContain = CATEGORIES_REQUIRE_CRA.includes(cat)
+        ? ['cra', 'canada revenue', 'tax', 'revenue agency']
+        : undefined;
+
+      categories[cat] = {
+        id: meta.id,
+        name: meta.name,
+        description: meta.description,
+        severity: CATEGORY_SEVERITY[cat],
+        terms,
+        mustContain,
+      };
+    }
+
+    return {
+      version: '2.0.0',
+      lastUpdated: new Date().toISOString(),
+      categories,
+      seasonalMultipliers: {
+        taxSeason: { startMonth: 2, startDay: 17, endMonth: 4, endDay: 30, multiplier: 1.3 },
+        gstPayment: { days: [5], months: [1, 4, 7, 10], multiplier: 1.5 },
+      },
+    };
+  }
+
+  /**
+   * Get default severity for a category
+   */
+  getCategorySeverity(category: TermCategory): Severity {
+    return CATEGORY_SEVERITY[category] || 'medium';
   }
 
   /**
