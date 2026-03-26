@@ -58,7 +58,6 @@ export class AdminComponent implements OnInit {
   // Unified terms state
   unifiedTermsResponse = signal<UnifiedTermsResponse | null>(null);
   termsLoading = signal(false);
-  showRemovedTerms = signal(false);
   termSearchFilter = signal('');
 
   // New term form
@@ -256,23 +255,6 @@ export class AdminComponent implements OnInit {
           this.authService.markUnauthenticated();
         }
         console.error('Failed to remove term', err);
-      },
-    });
-  }
-
-  // Restore unified term
-  restoreUnifiedTerm(term: UnifiedTerm): void {
-    this.api.restoreTerm(term.category, term.term).pipe(
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: () => {
-        this.loadUnifiedTerms();
-      },
-      error: (err) => {
-        if (err.status === 401) {
-          this.authService.markUnauthenticated();
-        }
-        console.error('Failed to restore term', err);
       },
     });
   }
@@ -544,30 +526,6 @@ export class AdminComponent implements OnInit {
 
   categoryKeys: CategoryKey[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers'];
   allCategoryKeys: TermCategory[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers', 'scamPatterns', 'systemGenerated'];
-
-  exportConfig(): void {
-    const config = this.keywordsConfig();
-    if (!config) {
-      console.error('No configuration loaded to export');
-      return;
-    }
-
-    const exportData = {
-      version: config.version || '1.0.0',
-      lastUpdated: new Date().toISOString(),
-      categories: config.categories,
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'scam-keywords.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
 
   // When Keywords tab is activated, load unified terms if authenticated
   onTabChange(tabId: number): void {

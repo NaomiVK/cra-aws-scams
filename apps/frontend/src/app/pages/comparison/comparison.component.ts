@@ -135,14 +135,14 @@ export class ComparisonComponent implements OnInit {
   }
 
   initializeDatePickers(): void {
-    const today = this.calendar.getToday();
+    const latestAvailable = this.calendar.getPrev(this.calendar.getToday(), 'd', 2); // GSC 2-day lag
 
-    // Period 1: Last 7 days
-    this.period1End.set(today);
-    this.period1Start.set(this.calendar.getPrev(today, 'd', 7));
+    // Period 1: Last 7 days (ending at latest available GSC data)
+    this.period1End.set(latestAvailable);
+    this.period1Start.set(this.calendar.getPrev(latestAvailable, 'd', 7));
 
     // Period 2: Previous 7 days
-    const period1StartDate = this.calendar.getPrev(today, 'd', 7);
+    const period1StartDate = this.calendar.getPrev(latestAvailable, 'd', 7);
     this.period2End.set(this.calendar.getPrev(period1StartDate, 'd', 1));
     this.period2Start.set(this.calendar.getPrev(period1StartDate, 'd', 8));
   }

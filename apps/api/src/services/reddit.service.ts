@@ -85,6 +85,29 @@ export class RedditService implements OnModuleInit {
     } catch (error) {
       this.logger.error(`Failed to initialize Reddit client: ${error.message}`);
     }
+
+    // Wait for TermService to be ready (needed for search terms)
+    await this.waitForTermService();
+  }
+
+  /**
+   * Wait for TermService to initialize (max 30 seconds)
+   */
+  private async waitForTermService(): Promise<void> {
+    const maxWait = 30000;
+    const checkInterval = 100;
+    let waited = 0;
+
+    while (!this.termService.isReady() && waited < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      waited += checkInterval;
+    }
+
+    if (this.termService.isReady()) {
+      this.logger.log(`TermService ready after ${waited}ms`);
+    } else {
+      this.logger.warn(`TermService not ready after ${maxWait}ms - Reddit searches will use defaults only`);
+    }
   }
 
   /**

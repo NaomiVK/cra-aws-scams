@@ -4,10 +4,9 @@ import {
   ScanCommand,
   DeleteCommand,
   QueryCommand,
-  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { AwsConfigService } from './aws-config.service';
-import { RedditPost, UnifiedTerm, TermCategory } from '@cra-scam-detection/shared-types';
+import { RedditPost, UnifiedTerm } from '@cra-scam-detection/shared-types';
 
 
 @Injectable()
@@ -255,68 +254,7 @@ export class DynamoDbService implements OnModuleInit {
   }
 
   /**
-   * Mark a term as removed (soft delete)
-   * Sets the removedAt timestamp
-   */
-  async markTermRemoved(term: string, category: string): Promise<boolean> {
-    if (!this.initialized) return false;
-
-    const client = this.awsConfigService.getDynamoDbClient();
-    if (!client) return false;
-
-    try {
-      const command = new UpdateCommand({
-        TableName: this.tableName,
-        Key: {
-          category,
-          term: term.toLowerCase().trim(),
-        },
-        UpdateExpression: 'SET removedAt = :removedAt',
-        ExpressionAttributeValues: {
-          ':removedAt': new Date().toISOString(),
-        },
-      });
-
-      await client.send(command);
-      this.logger.log(`Marked term "${term}" as removed`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to mark term as removed: ${error.message}`);
-      return false;
-    }
-  }
-
-  /**
-   * Restore a removed term (clear removedAt)
-   */
-  async restoreTerm(term: string, category: string): Promise<boolean> {
-    if (!this.initialized) return false;
-
-    const client = this.awsConfigService.getDynamoDbClient();
-    if (!client) return false;
-
-    try {
-      const command = new UpdateCommand({
-        TableName: this.tableName,
-        Key: {
-          category,
-          term: term.toLowerCase().trim(),
-        },
-        UpdateExpression: 'REMOVE removedAt',
-      });
-
-      await client.send(command);
-      this.logger.log(`Restored term "${term}"`);
-      return true;
-    } catch (error) {
-      this.logger.error(`Failed to restore term: ${error.message}`);
-      return false;
-    }
-  }
-
-  /**
-   * Delete a term permanently (hard delete)
-   * Only use for admin-added terms, not JSON-seeded terms
+   * Delete a term from DynamoDB
    */
   async deleteUnifiedTerm(term: string, category: string): Promise<boolean> {
     if (!this.initialized) return false;
@@ -342,30 +280,5 @@ export class DynamoDbService implements OnModuleInit {
     }
   }
 
-  /**
-   * Get terms by category
-   */
-  async getTermsByCategory(category: TermCategory): Promise<UnifiedTerm[]> {
-    if (!this.initialized) return [];
-
-    const client = this.awsConfigService.getDynamoDbClient();
-    if (!client) return [];
-
-    try {
-      const command = new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'category = :cat',
-        FilterExpression: 'attribute_exists(useForPatternMatch) OR attribute_exists(useForEmbedding)',
-        ExpressionAttributeValues: { ':cat': category },
-      });
-
-      const response = await client.send(command);
-      return (response.Items || []) as UnifiedTerm[];
-    } catch (error) {
-      if (error.name === 'ResourceNotFoundException') return [];
-      this.logger.error(`Failed to get terms by category: ${error.message}`);
-      return [];
-    }
-  }
 
 }

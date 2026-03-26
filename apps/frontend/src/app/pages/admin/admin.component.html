@@ -14,11 +14,6 @@
           <i class="bi bi-box-arrow-right me-1"></i>
           Logout
         </button>
-        <button class="btn btn-success" (click)="exportConfig()" [disabled]="!keywordsConfig()"
-                ngbTooltip="Download the current keyword configuration as JSON">
-          <i class="bi bi-download me-1"></i>
-          Export Configuration
-        </button>
       </div>
     }
   </div>
@@ -76,8 +71,19 @@
                   <span class="badge bg-secondary" ngbTooltip="Risk score 0-30: Low priority">{{ data.summary.low }} Low</span>
                 }
               </div>
-              <div>
-                <select class="form-select form-select-sm" [ngModel]="selectedDays()" (ngModelChange)="selectedDays.set($event); onDaysChange()"
+              <div class="d-flex align-items-center gap-3">
+                @if (emergingThreats(); as data) {
+                  <span class="badge bg-primary">
+                    <i class="bi bi-calendar3 me-1"></i>
+                    {{ data.currentPeriod.startDate }} to {{ data.currentPeriod.endDate }}
+                  </span>
+                  <span class="text-muted">vs</span>
+                  <span class="badge bg-secondary">
+                    <i class="bi bi-calendar3 me-1"></i>
+                    {{ data.previousPeriod.startDate }} to {{ data.previousPeriod.endDate }}
+                  </span>
+                }
+                <select class="form-select form-select-sm" style="width: auto;" [ngModel]="selectedDays()" (ngModelChange)="selectedDays.set($event); onDaysChange()"
                         ngbTooltip="Compare current period vs previous period">
                   <option [value]="7">Last 7 days</option>
                   <option [value]="14">Last 14 days</option>

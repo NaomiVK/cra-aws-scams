@@ -134,10 +134,8 @@ export class TermService implements OnModuleInit {
     // Log summary by category
     const categoryCounts = new Map<string, number>();
     for (const term of this.terms.values()) {
-      if (!term.removedAt) {
-        const count = categoryCounts.get(term.category) || 0;
-        categoryCounts.set(term.category, count + 1);
-      }
+      const count = categoryCounts.get(term.category) || 0;
+      categoryCounts.set(term.category, count + 1);
     }
     for (const [cat, count] of categoryCounts) {
       this.logger.log(`  - ${cat}: ${count} active terms`);
@@ -145,17 +143,10 @@ export class TermService implements OnModuleInit {
   }
 
   /**
-   * Get all active terms (excludes removed)
+   * Get all active terms
    */
   getAllTerms(): UnifiedTerm[] {
-    return Array.from(this.terms.values()).filter(t => !t.removedAt);
-  }
-
-  /**
-   * Get all removed terms (for restore UI)
-   */
-  getRemovedTerms(): UnifiedTerm[] {
-    return Array.from(this.terms.values()).filter(t => !!t.removedAt);
+    return Array.from(this.terms.values());
   }
 
   /**
@@ -164,7 +155,7 @@ export class TermService implements OnModuleInit {
    */
   getPatternMatchTerms(): UnifiedTerm[] {
     return Array.from(this.terms.values()).filter(
-      t => t.useForPatternMatch && !t.removedAt
+      t => t.useForPatternMatch
     );
   }
 
@@ -174,7 +165,7 @@ export class TermService implements OnModuleInit {
    */
   getEmbeddingTerms(): UnifiedTerm[] {
     return Array.from(this.terms.values()).filter(
-      t => t.useForEmbedding && !t.removedAt
+      t => t.useForEmbedding
     );
   }
 
@@ -183,7 +174,7 @@ export class TermService implements OnModuleInit {
    */
   getTermsByCategory(category: TermCategory): UnifiedTerm[] {
     return Array.from(this.terms.values()).filter(
-      t => t.category === category && !t.removedAt
+      t => t.category === category
     );
   }
 
@@ -236,9 +227,7 @@ export class TermService implements OnModuleInit {
   }
 
   /**
-   * Remove a term
-   * - Admin-added terms: hard delete
-   * - JSON-seeded terms: soft delete (set removedAt)
+   * Remove a term (hard delete from DynamoDB)
    * Also removes from embedding cache so it no longer matches in similarity checks
    */
   async removeTerm(term: string, category: string): Promise<boolean> {
@@ -251,22 +240,10 @@ export class TermService implements OnModuleInit {
       return false;
     }
 
-    let success: boolean;
-    if (existingTerm.source === 'admin') {
-      // Hard delete for admin-added terms
-      success = await this.dynamoDbService.deleteUnifiedTerm(normalizedTerm, category);
-      if (success) {
-        this.terms.delete(key);
-      }
-    } else {
-      // Soft delete for JSON-seeded terms
-      success = await this.dynamoDbService.markTermRemoved(normalizedTerm, category);
-      if (success) {
-        existingTerm.removedAt = new Date().toISOString();
-      }
-    }
-
+    const success = await this.dynamoDbService.deleteUnifiedTerm(normalizedTerm, category);
     if (success) {
+      this.terms.delete(key);
+
       // Remove from embedding cache so it no longer matches in similarity checks
       if (existingTerm.useForEmbedding) {
         this.embeddingService.removeSeedPhrase(normalizedTerm);
@@ -280,48 +257,13 @@ export class TermService implements OnModuleInit {
   }
 
   /**
-   * Restore a removed term (only for JSON-seeded terms)
-   * Also adds back to embedding cache if useForEmbedding is true
-   */
-  async restoreTerm(term: string, category: string): Promise<boolean> {
-    const normalizedTerm = term.toLowerCase().trim();
-    const key = `${category}:${normalizedTerm}`;
-
-    const existingTerm = this.terms.get(key);
-    if (!existingTerm) {
-      this.logger.warn(`Term "${normalizedTerm}" not found in ${category}`);
-      return false;
-    }
-
-    if (!existingTerm.removedAt) {
-      this.logger.warn(`Term "${normalizedTerm}" is not removed`);
-      return false;
-    }
-
-    const success = await this.dynamoDbService.restoreTerm(normalizedTerm, category);
-    if (success) {
-      delete existingTerm.removedAt;
-
-      // Add back to embedding cache if needed
-      if (existingTerm.useForEmbedding) {
-        await this.embeddingService.addSeedPhrase(normalizedTerm, existingTerm.category, existingTerm.severity);
-      }
-
-      this.cacheService.flush();
-      this.logger.log(`Restored term "${normalizedTerm}" in ${category}`);
-    }
-
-    return success;
-  }
-
-  /**
    * Check if a term exists (for filtering emerging threats)
    */
   termExists(term: string): boolean {
     const normalizedTerm = term.toLowerCase().trim();
 
     for (const unifiedTerm of this.terms.values()) {
-      if (unifiedTerm.term === normalizedTerm && !unifiedTerm.removedAt) {
+      if (unifiedTerm.term === normalizedTerm) {
         return true;
       }
     }
@@ -334,7 +276,7 @@ export class TermService implements OnModuleInit {
    */
   getUnifiedTermsResponse(): UnifiedTermsResponse {
     const activeTerms = this.getAllTerms();
-    const removedTerms = this.getRemovedTerms();
+    const removedTerms: UnifiedTerm[] = [];
 
     // Build category summary
     const categoryCounts = new Map<TermCategory, number>();

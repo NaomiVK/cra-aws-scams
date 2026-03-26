@@ -1,15 +1,12 @@
-import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgbTooltipModule, NgbModalModule, NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../../services/api.service';
 import {
   RedditPost,
   RedditStatsResponse,
-  SubredditStats,
-  SentimentSummary,
   MONITORED_SUBREDDITS,
 } from '@cra-scam-detection/shared-types';
 
@@ -22,7 +19,6 @@ import {
 })
 export class SocialComponent implements OnInit {
   private readonly api = inject(ApiService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly modalService = inject(NgbModal);
 
   // Loading states

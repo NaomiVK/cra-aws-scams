@@ -457,30 +457,5 @@ export class ScamsController {
     }
   }
 
-  /**
-   * POST /api/scams/terms/:category/:term/restore
-   * Restore a removed unified term (protected)
-   */
-  @Post('terms/:category/:term/restore')
-  @UseGuards(AdminAuthGuard)
-  async restoreTerm(
-    @Param('category') category: string,
-    @Param('term') term: string
-  ) {
-    try {
-      this.logger.log(`Restoring term "${term}" in category "${category}"`);
-      const success = await this.termService.restoreTerm(decodeURIComponent(term), category);
-
-      if (!success) {
-        throw new HttpException('Term not found or not removed', HttpStatus.NOT_FOUND);
-      }
-
-      return { success: true, message: `Restored "${term}" in ${category}` };
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      this.logger.error(`Failed to restore term: ${error}`);
-      throw new HttpException('Failed to restore term', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
 
 }
