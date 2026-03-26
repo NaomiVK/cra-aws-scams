@@ -93,7 +93,8 @@ export class DashboardComponent implements OnInit {
 
   onQuickDateRange(days: number): void {
     const endDate = new Date();
-    const startDate = new Date();
+    endDate.setDate(endDate.getDate() - 2); // GSC data has 2-day lag
+    const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - days);
 
     this.dateRange.set({
@@ -107,12 +108,14 @@ export class DashboardComponent implements OnInit {
 
   private getDefaultStartDate(): string {
     const date = new Date();
-    date.setDate(date.getDate() - 7);
+    date.setDate(date.getDate() - 2 - 7); // GSC 2-day lag + 7 days
     return this.formatDate(date);
   }
 
   private getDefaultEndDate(): string {
-    return this.formatDate(new Date());
+    const date = new Date();
+    date.setDate(date.getDate() - 2); // GSC data has 2-day lag
+    return this.formatDate(date);
   }
 
   private formatDate(date: Date): string {

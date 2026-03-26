@@ -2,7 +2,7 @@
   <div class="row mb-4">
     <div class="col">
       <h1 class="h3 mb-0">Admin Console</h1>
-      <p class="text-muted">Manage scam detection keywords and monitor emerging threats</p>
+      <p class="text-muted">Manage and monitor misinformation/scam keywords</p>
     </div>
     @if (isAuthenticated()) {
       <div class="col-auto d-flex gap-2 align-items-center">
@@ -392,38 +392,6 @@
                 </div>
               }
 
-              <!-- Removed Terms Section -->
-              @if (response.removedTerms.length > 0) {
-                <div class="card mt-4">
-                  <button type="button"
-                          class="card-header d-flex justify-content-between align-items-center w-100 border-0 text-start"
-                          style="cursor: pointer; background: inherit;"
-                          (click)="showRemovedTerms.set(!showRemovedTerms())">
-                    <span>
-                      <i class="bi" [ngClass]="showRemovedTerms() ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
-                      <strong class="ms-2">Removed Terms</strong>
-                      <span class="badge bg-secondary ms-2">{{ response.removedTerms.length }}</span>
-                    </span>
-                    <small class="text-muted">Click to {{ showRemovedTerms() ? 'collapse' : 'expand' }}</small>
-                  </button>
-                  @if (showRemovedTerms()) {
-                    <div class="card-body">
-                      <p class="text-muted small">These JSON-seeded terms have been removed. Click Restore to re-enable them.</p>
-                      @for (term of response.removedTerms; track term.term + term.category) {
-                        <span class="badge bg-light text-dark me-1 mb-1 p-2 d-inline-flex align-items-center gap-2">
-                          <span class="text-decoration-line-through">{{ term.term }}</span>
-                          <small class="text-muted">({{ getCategoryDisplayName(term.category) }})</small>
-                          <button class="btn btn-link btn-sm p-0 text-success" (click)="restoreUnifiedTerm(term)"
-                                  ngbTooltip="Restore this term">
-                            <i class="bi bi-arrow-counterclockwise"></i>
-                            Restore
-                          </button>
-                        </span>
-                      }
-                    </div>
-                  }
-                </div>
-              }
             } @else {
               <!-- No terms loaded -->
               <div class="alert alert-warning">

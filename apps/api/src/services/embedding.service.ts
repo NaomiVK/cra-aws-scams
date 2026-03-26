@@ -3,7 +3,6 @@ import OpenAI from 'openai';
 import { CacheService } from './cache.service';
 import { AwsConfigService } from './aws-config.service';
 import { TermService } from './term.service';
-import * as seedPhrasesConfig from '../config/seed-phrases.json';
 
 type SeedPhrase = {
   text: string;
@@ -42,8 +41,8 @@ export class EmbeddingService implements OnModuleInit {
     @Inject(forwardRef(() => TermService))
     private readonly termService: TermService,
   ) {
-    this.similarityThreshold = seedPhrasesConfig.settings.similarityThreshold;
-    this.model = seedPhrasesConfig.settings.model;
+    this.similarityThreshold = 0.80;
+    this.model = 'text-embedding-3-large';
   }
 
   async onModuleInit() {

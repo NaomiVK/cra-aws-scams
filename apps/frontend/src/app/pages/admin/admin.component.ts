@@ -528,7 +528,7 @@ export class AdminComponent implements OnInit {
       illegitimatePaymentMethods: 'critical',
       threatLanguage: 'high',
       suspiciousModifiers: 'medium',
-      scamPatterns: 'high',
+      scamPatterns: 'critical',
       systemGenerated: 'info',
     };
     return severities[key] || 'medium';

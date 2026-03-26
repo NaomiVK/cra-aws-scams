@@ -274,7 +274,8 @@ export class ComparisonComponent implements OnInit {
 
   private getDateRangeFromToday(days: number): DateRange {
     const end = new Date();
-    const start = new Date();
+    end.setDate(end.getDate() - 2); // GSC data has 2-day lag
+    const start = new Date(end);
     start.setDate(start.getDate() - days);
     return {
       startDate: this.formatDate(start),

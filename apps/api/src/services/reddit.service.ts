@@ -4,6 +4,7 @@ import { CacheService } from './cache.service';
 import { AwsConfigService } from './aws-config.service';
 import { SentimentService } from './sentiment.service';
 import { DynamoDbService } from './dynamodb.service';
+import { TermService } from './term.service';
 import {
   RedditPost,
   SubredditStats,
@@ -16,6 +17,7 @@ import {
  * Default search terms - always searched even if DynamoDB is empty
  */
 const DEFAULT_SEARCH_TERMS = [
+  'cra',
   'scam',
   'phishing',
   'cra scam',
@@ -45,6 +47,7 @@ export class RedditService implements OnModuleInit {
     private readonly awsConfigService: AwsConfigService,
     private readonly sentimentService: SentimentService,
     private readonly dynamoDbService: DynamoDbService,
+    private readonly termService: TermService,
   ) {}
 
   async onModuleInit() {
@@ -150,11 +153,11 @@ export class RedditService implements OnModuleInit {
       return cached;
     }
 
-    // Step 1: Load seed phrases from DynamoDB + combine with defaults
-    const seedPhrases = await this.dynamoDbService.getAllSeedPhrases();
-    const dynamoTerms = seedPhrases.map(p => p.term.toLowerCase());
+    // Step 1: Load all active terms from TermService + defaults
+    const activeTerms = this.termService.getAllTerms();
+    const dynamoTerms = activeTerms.map(t => t.term.toLowerCase());
     const searchTerms = [...new Set([...DEFAULT_SEARCH_TERMS, ...dynamoTerms])];
-    this.logger.log(`Loaded ${searchTerms.length} search terms (${DEFAULT_SEARCH_TERMS.length} defaults + ${dynamoTerms.length} from DynamoDB)`);
+    this.logger.log(`Loaded ${searchTerms.length} search terms (${DEFAULT_SEARCH_TERMS.length} defaults + ${activeTerms.length} from TermService)`);
 
     if (searchTerms.length === 0) {
       this.logger.warn('No search terms available');

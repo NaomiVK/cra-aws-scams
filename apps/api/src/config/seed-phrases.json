@@ -119,7 +119,7 @@
     },
 
     "scamPatterns": {
-      "severity": "high",
+      "severity": "critical",
       "terms": [
         "cra rent relief",
         "cra carbon tax rebate scam",

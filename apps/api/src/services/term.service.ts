@@ -9,25 +9,7 @@ import {
   AddTermRequest,
   UnifiedTermsResponse,
   ScamKeywordsConfig,
-  KeywordCategory,
 } from '@cra-scam-detection/shared-types';
-import * as scamKeywordsJson from '../config/scam-keywords.json';
-import * as seedPhrasesJson from '../config/seed-phrases.json';
-
-type ScamKeywordsCategory = {
-  id: string;
-  name: string;
-  description: string;
-  severity: string;
-  terms: string[];
-  mustContain?: string[];
-  patterns?: string[];
-};
-
-type SeedPhraseCategory = {
-  severity: string;
-  terms: string[];
-};
 
 /**
  * Category metadata — static definitions for each category
@@ -132,23 +114,10 @@ export class TermService implements OnModuleInit {
   }
 
   /**
-   * Load terms from DynamoDB, seed from JSON if empty
+   * Load terms from DynamoDB
    */
   async loadTerms(): Promise<void> {
-    this.logger.log('[TERM_SERVICE] Loading terms...');
-
-    // Check if we have unified terms in DynamoDB
-    const hasUnifiedTerms = await this.dynamoDbService.hasUnifiedTerms();
-
-    if (!hasUnifiedTerms) {
-      this.logger.log('[TERM_SERVICE] No unified terms in DynamoDB');
-
-      // First, migrate any existing keyword:* entries from old format
-      await this.migrateExistingKeywords();
-
-      // Then seed from JSON (will merge with migrated terms)
-      await this.seedFromJson();
-    }
+    this.logger.log('[TERM_SERVICE] Loading terms from DynamoDB...');
 
     // Load all terms from DynamoDB
     const dbTerms = await this.dynamoDbService.getAllUnifiedTerms();
@@ -173,160 +142,6 @@ export class TermService implements OnModuleInit {
     for (const [cat, count] of categoryCounts) {
       this.logger.log(`  - ${cat}: ${count} active terms`);
     }
-  }
-
-  /**
-   * Migrate existing keyword:* entries from old DynamoDB format to new unified format
-   * This preserves any terms that were added via the old admin UI
-   */
-  private async migrateExistingKeywords(): Promise<void> {
-    this.logger.log('[TERM_SERVICE] Checking for existing keyword:* entries to migrate...');
-
-    try {
-      // Get existing keywords in old format (keyword:categoryName)
-      const existingKeywords = await this.dynamoDbService.getAllKeywords();
-
-      if (existingKeywords.length === 0) {
-        this.logger.log('[TERM_SERVICE] No existing keyword:* entries to migrate');
-        return;
-      }
-
-      this.logger.log(`[TERM_SERVICE] Found ${existingKeywords.length} existing keyword:* entries to migrate`);
-
-      let migratedCount = 0;
-      for (const record of existingKeywords) {
-        // Extract category name (remove "keyword:" prefix)
-        const categoryName = record.category.replace('keyword:', '') as TermCategory;
-
-        // Determine severity from category
-        const severity = CATEGORY_SEVERITY[categoryName] || 'medium';
-
-        // Create unified term (both pattern match AND embedding enabled for admin-added terms)
-        const unifiedTerm: UnifiedTerm = {
-          term: record.term.toLowerCase().trim(),
-          category: categoryName,
-          severity,
-          useForPatternMatch: true,
-          useForEmbedding: true,
-          mustContainCra: CATEGORIES_REQUIRE_CRA.includes(categoryName),
-          source: 'admin', // These were added via admin UI, so mark as admin
-          createdAt: record.createdAt || new Date().toISOString(),
-        };
-
-        const success = await this.dynamoDbService.saveUnifiedTerm(unifiedTerm);
-        if (success) {
-          migratedCount++;
-        }
-      }
-
-      this.logger.log(`[TERM_SERVICE] Migrated ${migratedCount} existing keywords to unified format`);
-    } catch (error) {
-      this.logger.warn(`[TERM_SERVICE] Failed to migrate existing keywords: ${error.message}`);
-    }
-  }
-
-  /**
-   * Seed initial terms from both JSON files
-   * Merges scam-keywords.json and seed-phrases.json
-   * Skips terms that already exist from migration (admin-added terms take precedence)
-   */
-  private async seedFromJson(): Promise<void> {
-    this.logger.log('[TERM_SERVICE] Seeding from JSON files...');
-
-    // First, load any terms that already exist (from migration)
-    const existingUnifiedTerms = await this.dynamoDbService.getAllUnifiedTerms();
-    const existingKeys = new Set<string>();
-    for (const term of existingUnifiedTerms) {
-      existingKeys.add(`${term.category}:${term.term.toLowerCase()}`);
-    }
-    this.logger.log(`[TERM_SERVICE] Found ${existingKeys.size} already-migrated terms to preserve`);
-
-    // Track terms we've seen to merge duplicates from JSON
-    const seenTerms = new Map<string, UnifiedTerm>();
-
-    // Load from scam-keywords.json (useForPatternMatch = true)
-    const keywordsCategories = scamKeywordsJson.categories as Record<string, ScamKeywordsCategory>;
-    for (const [categoryName, categoryData] of Object.entries(keywordsCategories)) {
-      const category = categoryName as TermCategory;
-      const mustContainCra = CATEGORIES_REQUIRE_CRA.includes(category);
-
-      for (const term of categoryData.terms) {
-        const key = `${category}:${term.toLowerCase()}`;
-
-        // Skip if this term already exists from migration
-        if (existingKeys.has(key)) {
-          continue;
-        }
-
-        const existingTerm = seenTerms.get(key);
-
-        if (existingTerm) {
-          // Merge: enable pattern match
-          existingTerm.useForPatternMatch = true;
-        } else {
-          seenTerms.set(key, {
-            term: term.toLowerCase(),
-            category,
-            severity: categoryData.severity as Severity,
-            useForPatternMatch: true,
-            useForEmbedding: false,
-            mustContainCra,
-            source: 'json',
-            createdAt: new Date().toISOString(),
-          });
-        }
-      }
-    }
-
-    // Load from seed-phrases.json (useForEmbedding = true)
-    const seedPhrases = seedPhrasesJson.phrases as Record<string, SeedPhraseCategory>;
-    for (const [categoryName, categoryData] of Object.entries(seedPhrases)) {
-      const category = categoryName as TermCategory;
-
-      for (const term of categoryData.terms) {
-        const key = `${category}:${term.toLowerCase()}`;
-
-        // Skip if this term already exists from migration
-        if (existingKeys.has(key)) {
-          continue;
-        }
-
-        const existingTerm = seenTerms.get(key);
-
-        if (existingTerm) {
-          // Merge: enable embedding
-          existingTerm.useForEmbedding = true;
-        } else {
-          seenTerms.set(key, {
-            term: term.toLowerCase(),
-            category,
-            severity: categoryData.severity as Severity,
-            useForPatternMatch: false,
-            useForEmbedding: true,
-            mustContainCra: false,
-            source: 'json',
-            createdAt: new Date().toISOString(),
-          });
-        }
-      }
-    }
-
-    // Convert to array
-    const termsToSeed: UnifiedTerm[] = [];
-    for (const term of seenTerms.values()) {
-      termsToSeed.push(term);
-    }
-
-    this.logger.log(`[TERM_SERVICE] Seeding ${termsToSeed.length} merged terms...`);
-
-    // Save all terms to DynamoDB
-    let savedCount = 0;
-    for (const term of termsToSeed) {
-      const success = await this.dynamoDbService.saveUnifiedTerm(term);
-      if (success) savedCount++;
-    }
-
-    this.logger.log(`[TERM_SERVICE] Seeded ${savedCount} terms to DynamoDB`);
   }
 
   /**
