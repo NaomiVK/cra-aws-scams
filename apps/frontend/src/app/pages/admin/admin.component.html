@@ -291,26 +291,11 @@
                       <option value="low">Low</option>
                     </select>
                   </div>
-                  <div class="col-md-3">
+                  <div class="col-md-5">
                     <label class="form-label" for="newTermInput">Term</label>
                     <input id="newTermInput" type="text" class="form-control" placeholder="Enter term"
                            [ngModel]="newTermText()" (ngModelChange)="newTermText.set($event)"
                            (keyup.enter)="addUnifiedTerm()">
-                  </div>
-                  <div class="col-md-2">
-                    <span class="form-label d-block">Detection</span>
-                    <div class="d-flex gap-3">
-                      <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="patternMatch"
-                               [ngModel]="newTermPatternMatch()" (ngModelChange)="newTermPatternMatch.set($event)">
-                        <label class="form-check-label" for="patternMatch" ngbTooltip="Use in Dashboard pattern detection">Pattern</label>
-                      </div>
-                      <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="embedding"
-                               [ngModel]="newTermEmbedding()" (ngModelChange)="newTermEmbedding.set($event)">
-                        <label class="form-check-label" for="embedding" ngbTooltip="Use in AI similarity detection">AI</label>
-                      </div>
-                    </div>
                   </div>
                   <div class="col-md-2">
                     <button class="btn btn-primary w-100" (click)="addUnifiedTerm()" [disabled]="!newTermText().trim()">
@@ -377,16 +362,6 @@
                       @for (term of termsByCategory().get(cat); track term.term) {
                         <span class="badge me-1 mb-1 p-2 d-inline-flex align-items-center gap-2 bg-light text-dark border">
                           {{ term.term }}
-                          @if (term.useForPatternMatch && term.useForEmbedding) {
-                            <span class="badge bg-success" ngbTooltip="Pattern Match + AI">P+AI</span>
-                          } @else if (term.useForPatternMatch) {
-                            <span class="badge bg-primary" ngbTooltip="Pattern Match only">P</span>
-                          } @else if (term.useForEmbedding) {
-                            <span class="badge bg-warning text-dark" ngbTooltip="AI Embedding only">AI</span>
-                          }
-                          @if (term.source === 'admin') {
-                            <span class="badge bg-secondary" ngbTooltip="Added via admin UI">Admin</span>
-                          }
                           <button class="btn btn-outline-danger btn-sm py-0 px-1" (click)="removeUnifiedTerm(term)"
                                   title="Remove this term">
                             ✕

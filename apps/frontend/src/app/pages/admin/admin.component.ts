@@ -64,8 +64,6 @@ export class AdminComponent implements OnInit {
   newTermText = signal('');
   newTermCategory = signal<TermCategory>('fakeExpiredBenefits');
   newTermSeverity = signal<Severity>('critical');
-  newTermPatternMatch = signal(true);
-  newTermEmbedding = signal(true);
 
   // Modal state
   pendingThreat = signal<EmergingThreat | null>(null);
@@ -224,8 +222,8 @@ export class AdminComponent implements OnInit {
       term,
       category: this.newTermCategory(),
       severity: this.newTermSeverity(),
-      useForPatternMatch: this.newTermPatternMatch(),
-      useForEmbedding: this.newTermEmbedding(),
+      useForPatternMatch: true,
+      useForEmbedding: true,
     }).pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
