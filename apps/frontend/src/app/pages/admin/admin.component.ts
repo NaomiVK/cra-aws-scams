@@ -497,7 +497,7 @@ export class AdminComponent implements OnInit {
       fakeExpiredBenefits: 'Fake/Expired Benefits',
       illegitimatePaymentMethods: 'Illegitimate Payment Methods',
       threatLanguage: 'Threat Language',
-      suspiciousModifiers: 'Suspicious Modifiers',
+      suspiciousModifiers: 'Scam Pressure Language',
       scamPatterns: 'Scam Patterns',
       systemGenerated: 'System-Generated (AI Overview)',
     };
@@ -525,7 +525,7 @@ export class AdminComponent implements OnInit {
   }
 
   categoryKeys: CategoryKey[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers'];
-  allCategoryKeys: TermCategory[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers', 'scamPatterns', 'systemGenerated'];
+  allCategoryKeys: TermCategory[] = ['fakeExpiredBenefits', 'illegitimatePaymentMethods', 'threatLanguage', 'suspiciousModifiers', 'scamPatterns'];
 
   // When Keywords tab is activated, load unified terms if authenticated
   onTabChange(tabId: number): void {

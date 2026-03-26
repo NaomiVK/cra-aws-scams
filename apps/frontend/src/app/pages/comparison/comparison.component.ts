@@ -359,7 +359,7 @@ export class ComparisonComponent implements OnInit {
       fakeExpiredBenefits: 'Fake/Expired Benefits',
       illegitimatePaymentMethods: 'Illegitimate Payment Methods',
       threatLanguage: 'Threat Language',
-      suspiciousModifiers: 'Suspicious Modifiers'
+      suspiciousModifiers: 'Scam Pressure Language'
     };
     return labels[category];
   }

@@ -39,7 +39,7 @@ export const environment = {
 
   // Cache Settings (in seconds)
   cache: {
-    analyticsTtl: 3600,
+    analyticsTtl: 14400, // 4 hours (GSC data updates once daily with 2-day lag)
     trendsTtl: 7200, // 2 hours - longer TTL to reduce Google rate limiting
     keywordsTtl: 300,
     embeddingsTtl: 86400,

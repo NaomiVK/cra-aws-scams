@@ -12,3 +12,4 @@ export * from './reddit.service';
 export * from './auth.service';
 export * from './term.service';
 export * from './system-generated.service';
+export * from './cache-warming.service';

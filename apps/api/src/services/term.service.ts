@@ -32,7 +32,7 @@ const CATEGORY_META: Record<TermCategory, { id: string; name: string; descriptio
   },
   suspiciousModifiers: {
     id: 'modifiers',
-    name: 'Suspicious Modifiers',
+    name: 'Scam Pressure Language',
     description: 'Legitimate benefits + these words = potential scam content',
   },
   scamPatterns: {

@@ -18,6 +18,7 @@ import {
   AuthService,
   TermService,
   SystemGeneratedService,
+  CacheWarmingService,
 } from '../services';
 
 // Controllers
@@ -62,6 +63,7 @@ import { AdminAuthGuard } from '../guards';
     SentimentService,
     RedditService,
     AuthService,
+    CacheWarmingService,
     AdminAuthGuard,
   ],
 })
