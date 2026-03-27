@@ -209,7 +209,7 @@
                     } @else {
                       <button class="btn btn-sm btn-outline-success"
                         (click)="openAddModal(term.query)"
-                        ngbTooltip="Add to seed phrases">
+                        ngbTooltip="Add to db">
                         <i class="bi bi-plus-lg fw-bold"></i>
                       </button>
                     }
@@ -332,7 +332,7 @@
                   } @else {
                     <button class="btn btn-sm btn-outline-primary"
                       (click)="openAddModal(term.query)"
-                      ngbTooltip="Add to seed phrases">
+                      ngbTooltip="Add to db">
                       <i class="bi bi-plus-lg"></i>
                     </button>
                   }
@@ -369,34 +369,37 @@
       <span class="form-label fw-bold d-block">Term</span>
       <div class="form-control bg-light">{{ pendingTerm() }}</div>
     </div>
-    <div class="mb-3">
-      <span class="form-label fw-bold d-block">Category</span>
-      <div class="btn-group-vertical w-100" role="group">
-        <button type="button" class="btn text-start"
-          [class.btn-primary]="selectedCategory() === 'fakeExpiredBenefits'"
-          [class.btn-outline-secondary]="selectedCategory() !== 'fakeExpiredBenefits'"
-          (click)="selectedCategory.set('fakeExpiredBenefits')">
-          <i class="bi bi-exclamation-triangle me-2"></i>Fake/Expired Benefits
-        </button>
-        <button type="button" class="btn text-start"
-          [class.btn-primary]="selectedCategory() === 'illegitimatePaymentMethods'"
-          [class.btn-outline-secondary]="selectedCategory() !== 'illegitimatePaymentMethods'"
-          (click)="selectedCategory.set('illegitimatePaymentMethods')">
-          <i class="bi bi-credit-card me-2"></i>Illegitimate Payment Methods
-        </button>
-        <button type="button" class="btn text-start"
-          [class.btn-primary]="selectedCategory() === 'threatLanguage'"
-          [class.btn-outline-secondary]="selectedCategory() !== 'threatLanguage'"
-          (click)="selectedCategory.set('threatLanguage')">
-          <i class="bi bi-shield-exclamation me-2"></i>Threat Language
-        </button>
-        <button type="button" class="btn text-start"
-          [class.btn-primary]="selectedCategory() === 'suspiciousModifiers'"
-          [class.btn-outline-secondary]="selectedCategory() !== 'suspiciousModifiers'"
-          (click)="selectedCategory.set('suspiciousModifiers')">
-          <i class="bi bi-flag me-2"></i>Scam Pressure Language
-        </button>
-      </div>
+    <div class="list-group">
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="selectedCategory() === 'fakeExpiredBenefits'"
+              (click)="selectedCategory.set('fakeExpiredBenefits')">
+        Fake/Expired Benefits
+        <span class="badge bg-danger">Critical</span>
+      </button>
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="selectedCategory() === 'illegitimatePaymentMethods'"
+              (click)="selectedCategory.set('illegitimatePaymentMethods')">
+        Illegitimate Payment Methods
+        <span class="badge bg-danger">Critical</span>
+      </button>
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="selectedCategory() === 'threatLanguage'"
+              (click)="selectedCategory.set('threatLanguage')">
+        Threat Language
+        <span class="badge bg-warning text-dark">High</span>
+      </button>
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="selectedCategory() === 'suspiciousModifiers'"
+              (click)="selectedCategory.set('suspiciousModifiers')">
+        Scam Pressure Language
+        <span class="badge bg-info">Medium</span>
+      </button>
+      <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+              [class.active]="selectedCategory() === 'scamPatterns'"
+              (click)="selectedCategory.set('scamPatterns')">
+        Scam Patterns
+        <span class="badge bg-warning text-dark">High</span>
+      </button>
     </div>
   </div>
   <div class="modal-footer">

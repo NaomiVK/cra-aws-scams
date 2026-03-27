@@ -8,7 +8,7 @@ import { ComparisonResponse, DateRange, TermComparison } from '@cra-scam-detecti
 
 type SortColumn = 'query' | 'currentImpressions' | 'previousImpressions' | 'change';
 type SortDirection = 'asc' | 'desc';
-type CategoryKey = 'fakeExpiredBenefits' | 'illegitimatePaymentMethods' | 'threatLanguage' | 'suspiciousModifiers';
+type CategoryKey = 'fakeExpiredBenefits' | 'illegitimatePaymentMethods' | 'threatLanguage' | 'suspiciousModifiers' | 'scamPatterns';
 
 type ComparisonPreset = {
   label: string;
@@ -359,7 +359,8 @@ export class ComparisonComponent implements OnInit {
       fakeExpiredBenefits: 'Fake/Expired Benefits',
       illegitimatePaymentMethods: 'Illegitimate Payment Methods',
       threatLanguage: 'Threat Language',
-      suspiciousModifiers: 'Scam Pressure Language'
+      suspiciousModifiers: 'Scam Pressure Language',
+      scamPatterns: 'Scam Patterns'
     };
     return labels[category];
   }
