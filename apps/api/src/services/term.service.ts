@@ -62,7 +62,7 @@ const CATEGORY_SEVERITY: Record<TermCategory, Severity> = {
   illegitimatePaymentMethods: 'critical',
   threatLanguage: 'high',
   suspiciousModifiers: 'medium',
-  scamPatterns: 'high',
+  scamPatterns: 'critical',
   systemGenerated: 'info',
 };
 

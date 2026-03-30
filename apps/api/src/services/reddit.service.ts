@@ -17,7 +17,6 @@ import {
  * Default search terms - always searched even if DynamoDB is empty
  */
 const DEFAULT_SEARCH_TERMS = [
-  'cra',
   'scam',
   'phishing',
   'cra scam',

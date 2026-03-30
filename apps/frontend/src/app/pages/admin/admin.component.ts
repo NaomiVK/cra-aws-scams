@@ -213,6 +213,11 @@ export class AdminComponent implements OnInit {
     });
   }
 
+  onCategoryChange(category: TermCategory): void {
+    this.newTermCategory.set(category);
+    this.newTermSeverity.set(this.getCategorySeverity(category) as Severity);
+  }
+
   // Add unified term
   addUnifiedTerm(): void {
     const term = this.newTermText().trim();

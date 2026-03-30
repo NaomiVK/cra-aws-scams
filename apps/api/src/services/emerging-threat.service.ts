@@ -472,9 +472,11 @@ export class EmergingThreatService {
   /**
    * Calculate composite risk score (0-100)
    *
-   * Formula includes velocity factor (5-8% weight):
-   * - Without embedding: CTR (35%) + Position (22%) + Volume (18%) + Emergence (13%) + Velocity (12%)
-   * - With embedding: Embedding (30%) + CTR (22%) + Position (13%) + Volume (13%) + Emergence (10%) + Velocity (12%)
+   * CTR anomaly already accounts for position (benchmarks are per-position-range),
+   * so position is not a separate factor.
+   *
+   * - Without embedding: CTR (45%) + Volume (23%) + Emergence (17%) + Velocity (15%)
+   * - With embedding: Embedding (30%) + CTR (30%) + Volume (15%) + Emergence (12%) + Velocity (13%)
    */
   calculateRiskScore(
     term: TermComparison,
@@ -484,26 +486,13 @@ export class EmergingThreatService {
     velocity?: VelocityMetrics
   ): number {
     // 1. CTR Factor - Low CTR at good position = users clicking elsewhere (scam sites)
+    //    Already incorporates position via per-position-range benchmarks
     let ctrFactor = ctrAnomaly.anomalyScore;
     if (ctrAnomaly.isAnomalous) {
       ctrFactor = Math.min(1, ctrFactor + 0.3); // Boost if definitely anomalous
     }
 
-    // 2. Position Factor - Good position + low clicks = very suspicious
-    let positionFactor = 0;
-    const position = term.current.position;
-    const clicks = term.current.clicks;
-    const impressions = term.current.impressions;
-
-    if (position <= 3 && clicks < 50 && impressions > 100) {
-      positionFactor = 0.9;
-    } else if (position <= 8 && clicks < 20 && impressions > 50) {
-      positionFactor = 0.7;
-    } else if (position <= 15 && clicks < 10 && impressions > 30) {
-      positionFactor = 0.5;
-    }
-
-    // 3. Volume Factor - Sudden spike in impressions
+    // 2. Volume Factor - Sudden spike in impressions
     let volumeFactor = 0;
     const impressionGrowth = term.change.impressionsPercent;
     if (impressionGrowth >= 300) {
@@ -516,8 +505,9 @@ export class EmergingThreatService {
       volumeFactor = 0.3;
     }
 
-    // 4. Emergence Factor - New terms appearing with volume are emerging threats
+    // 3. Emergence Factor - New terms appearing with volume are emerging threats
     let emergenceFactor = 0;
+    const impressions = term.current.impressions;
     if (term.isNew) {
       if (impressions > 100) {
         emergenceFactor = 0.9;
@@ -528,14 +518,14 @@ export class EmergingThreatService {
       }
     }
 
-    // 5. Velocity Factor - Fast-growing terms are more suspicious
+    // 4. Velocity Factor - Fast-growing terms are more suspicious
     const velocityFactor = velocity?.velocityScore || 0;
 
     // Calculate base score - use different weights if we have embedding match
     let score: number;
 
     if (embeddingMatch) {
-      // 6. Embedding Factor - Semantic similarity to known scam phrases (STRONGEST signal)
+      // 5. Embedding Factor - Semantic similarity to known scam phrases (STRONGEST signal)
       const embeddingFactor = embeddingMatch.similarity;
 
       // Severity boost based on matched category
@@ -546,23 +536,21 @@ export class EmergingThreatService {
         severityMultiplier = 1.15;
       }
 
-      // With embedding: give semantic match the highest weight, include velocity
+      // With embedding: give semantic match the highest weight
       score = (
         (embeddingFactor * 0.30 * severityMultiplier) +
-        (ctrFactor * 0.22) +
-        (positionFactor * 0.13) +
-        (volumeFactor * 0.13) +
-        (emergenceFactor * 0.10) +
-        (velocityFactor * 0.12)
+        (ctrFactor * 0.30) +
+        (volumeFactor * 0.15) +
+        (emergenceFactor * 0.12) +
+        (velocityFactor * 0.13)
       ) * 100;
     } else {
-      // Without embedding: include velocity in score
+      // Without embedding: CTR gets the highest weight
       score = (
-        (ctrFactor * 0.35) +
-        (positionFactor * 0.22) +
-        (volumeFactor * 0.18) +
-        (emergenceFactor * 0.13) +
-        (velocityFactor * 0.12)
+        (ctrFactor * 0.45) +
+        (volumeFactor * 0.23) +
+        (emergenceFactor * 0.17) +
+        (velocityFactor * 0.15)
       ) * 100;
     }
 

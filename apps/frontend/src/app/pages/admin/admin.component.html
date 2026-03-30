@@ -135,7 +135,7 @@
                                  ngbTooltip="Select all on this page">
                         </th>
                         <th ngbTooltip="Search query from Google Search Console">Query</th>
-                        <th ngbTooltip="Composite risk score (0-100) based on semantic similarity, CTR anomaly, volume growth, velocity, and emergence">Risk</th>
+                        <th ngbTooltip="Composite risk score (0-100): Embedding (30%), CTR Anomaly (30%), Volume Growth (15%), Emergence (12%), Velocity (13%)">Risk</th>
                         <th ngbTooltip="Click-through rate compared to expected CTR for this position. Low CTR at good position = users clicking scam sites instead">CTR Anomaly</th>
                         <th ngbTooltip="Average ranking position in search results">Pos</th>
                         <th ngbTooltip="Number of times users saw CRA pages for this query">Impr</th>
@@ -276,7 +276,7 @@
                 <div class="row g-2 align-items-end">
                   <div class="col-md-3">
                     <label class="form-label" for="newTermCategorySelect">Category</label>
-                    <select id="newTermCategorySelect" class="form-select" [ngModel]="newTermCategory()" (ngModelChange)="newTermCategory.set($event)">
+                    <select id="newTermCategorySelect" class="form-select" [ngModel]="newTermCategory()" (ngModelChange)="onCategoryChange($event)">
                       @for (cat of allCategoryKeys; track cat) {
                         <option [value]="cat">{{ getCategoryDisplayName(cat) }}</option>
                       }
@@ -430,7 +430,7 @@
               [class.active]="modalCategory() === 'scamPatterns'"
               (click)="modalCategory.set('scamPatterns')">
         Scam Patterns
-        <span class="badge bg-warning text-dark">High</span>
+        <span class="badge bg-danger">Critical</span>
       </button>
     </div>
   </div>
